@@ -1,0 +1,61 @@
+# Music Analytics Configuration
+# Copy to ~/.config/music-analytics/config.toml
+
+[general]
+# Log level: trace, debug, info, warn, error
+log_level = "info"
+
+# Data directory (default: ~/.local/share/music-analytics)
+# data_dir = "/home/user/.local/share/music-analytics"
+
+[database]
+# Local SQLite database path (default: ~/.local/share/music-analytics/listens.db)
+# path = "/custom/path/to/listens.db"
+
+[tracking]
+# Minimum play time in seconds to count as a listen
+min_play_seconds = 30
+
+# Minimum percentage of track to count as a listen (0.0-1.0)
+min_play_percent = 0.5
+
+# Only track local files (ignore streaming services)
+local_only = true
+
+# Track seek behavior (counts, direction, intro skipping)
+track_seeks = true
+
+# Track volume levels via PulseAudio
+track_volume = true
+
+# Track context (time of day, active window, etc.)
+track_context = true
+
+# Exit daemon after this many seconds with no players (0 = never)
+idle_timeout_seconds = 30
+
+[players]
+# Whitelist of players to track (empty = all players)
+# Use MPRIS player names (without org.mpris.MediaPlayer2. prefix)
+whitelist = []
+
+# Blacklist of players to ignore
+blacklist = []
+
+# Players known to only play local files
+# These bypass the URL check for local_only mode
+local_only_players = [
+    "io.bassi.Amberol",
+    "org.gnome.Lollypop",
+    "org.gnome.Music",
+    "audacious",
+    "deadbeef",
+    "quodlibet",
+    "clementine",
+    "strawberry",
+    "rhythmbox",
+    "elisa",
+    "sayonara",
+    "cantata",
+]
+
