@@ -1,0 +1,25 @@
+[Unit]
+Description=Music Analytics Tracker
+Documentation=https://github.com/tom-bleher/music-analytics-rs
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/music-tracker
+Restart=on-failure
+RestartSec=5
+
+# Environment
+Environment=RUST_LOG=info
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/share/music-analytics
+ReadWritePaths=%h/.config/music-analytics
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
