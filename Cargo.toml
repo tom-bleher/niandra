@@ -1,0 +1,94 @@
+[package]
+name = "music-analytics"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tom Bleher"]
+description = "Personal music listening analytics for Linux - track your listening habits from MPRIS players"
+license = "MIT"
+repository = "https://github.com/tom-bleher/music-analytics-rs"
+keywords = ["music", "analytics", "mpris", "dbus", "scrobble"]
+categories = ["multimedia", "command-line-utilities"]
+
+[dependencies]
+# Async runtime - only include needed features to reduce binary size and compile time
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "signal", "macros"] }
+
+# Database - Turso/libSQL
+libsql = "0.6"
+
+# D-Bus for MPRIS
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Terminal UI
+ratatui = { version = "0.29", optional = true }
+crossterm = { version = "0.28", optional = true }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+humantime = "2"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Async utilities
+futures = "0.3"
+async-trait = "0.1"
+
+# Audio volume (PulseAudio/PipeWire)
+libpulse-binding = { version = "2", optional = true }
+
+# Directory paths
+dirs = "6"
+
+# UUID for session tracking
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# URL encoding/decoding
+urlencoding = "2"
+
+[features]
+default = ["pulse"]
+tui = ["ratatui", "crossterm"]
+pulse = ["libpulse-binding"]
+full = ["tui", "pulse"]
+
+[[bin]]
+name = "music-analytics"
+path = "src/main.rs"
+
+[[bin]]
+name = "music-tracker"
+path = "src/bin/tracker.rs"
+
+[[bin]]
+name = "music-stats"
+path = "src/bin/stats.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 1
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
