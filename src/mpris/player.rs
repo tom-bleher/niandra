@@ -51,7 +51,10 @@ pub struct MprisMonitor {
     player_config: PlayerConfig,
     tracking_config: TrackingConfig,
     db: Database,
+    /// Map from unique bus name (e.g., `:1.500`) to track state
     tracked_players: Arc<RwLock<HashMap<String, TrackState>>>,
+    /// Map from unique bus name to well-known name (e.g., `org.mpris.MediaPlayer2.io.bassi.Amberol`)
+    bus_name_map: Arc<RwLock<HashMap<String, String>>>,
     /// Atomic flag for stop signaling - more efficient than RwLock for simple bools
     running: Arc<AtomicBool>,
     idle_since: Arc<RwLock<Option<Instant>>>,
@@ -72,6 +75,7 @@ impl MprisMonitor {
             tracking_config,
             db,
             tracked_players: Arc::new(RwLock::new(HashMap::new())),
+            bus_name_map: Arc::new(RwLock::new(HashMap::new())),
             running: Arc::new(AtomicBool::new(true)),
             idle_since: Arc::new(RwLock::new(None)),
         })
@@ -201,20 +205,33 @@ impl MprisMonitor {
     }
 
     /// Add a player to tracking
-    async fn add_player(&self, name: &str) -> Result<()> {
+    async fn add_player(&self, well_known_name: &str) -> Result<()> {
+        // Get unique bus name for this well-known name
+        let dbus = DBusProxy::new(&self.connection).await?;
+        let bus_name = well_known_name
+            .try_into()
+            .map_err(|e| crate::error::Error::other(format!("Invalid bus name: {e}")))?;
+        let unique_name = dbus.get_name_owner(bus_name).await?;
+        let unique_name_str = unique_name.as_str().to_string();
+
         let mut players = self.tracked_players.write().await;
 
-        if players.contains_key(name) {
+        if players.contains_key(&unique_name_str) {
             return Ok(());
         }
 
-        info!("Adding player: {}", name);
+        info!("Adding player: {}", well_known_name);
 
         let mut state = TrackState::new();
-        state.player_name = Some(name.strip_prefix(MPRIS_PREFIX).unwrap_or(name).to_string());
+        state.player_name = Some(
+            well_known_name
+                .strip_prefix(MPRIS_PREFIX)
+                .unwrap_or(well_known_name)
+                .to_string(),
+        );
 
         // Get initial state
-        if let Ok(metadata) = self.get_player_metadata(name).await {
+        if let Ok(metadata) = self.get_player_metadata(well_known_name).await {
             let track = parse_metadata(&metadata);
             state.track = track.clone();
             state.is_local = track.is_local_source(
@@ -223,19 +240,25 @@ impl MprisMonitor {
             );
         }
 
-        if let Ok(status) = self.get_playback_status(name).await {
+        if let Ok(status) = self.get_playback_status(well_known_name).await {
             if status == "Playing" {
                 state.start_playing();
                 info!(
                     "[{}] Already playing: {} - {}",
-                    name,
+                    well_known_name,
                     state.track.artist.as_deref().unwrap_or("Unknown"),
                     state.track.title.as_deref().unwrap_or("Unknown")
                 );
             }
         }
 
-        players.insert(name.to_string(), state);
+        players.insert(unique_name_str.clone(), state);
+
+        // Store mapping from unique name to well-known name
+        self.bus_name_map
+            .write()
+            .await
+            .insert(unique_name_str, well_known_name.to_string());
 
         // Cancel idle timer
         *self.idle_since.write().await = None;
@@ -243,12 +266,24 @@ impl MprisMonitor {
         Ok(())
     }
 
-    /// Remove a player from tracking
-    async fn remove_player(&self, name: &str) {
+    /// Remove a player from tracking by well-known name
+    async fn remove_player(&self, well_known_name: &str) {
+        // Find the unique name for this well-known name
+        let unique_name = {
+            let map = self.bus_name_map.read().await;
+            map.iter()
+                .find(|(_, v)| *v == well_known_name)
+                .map(|(k, _)| k.clone())
+        };
+
+        let Some(unique_name) = unique_name else {
+            return;
+        };
+
         let mut players = self.tracked_players.write().await;
 
-        if let Some(state) = players.remove(name) {
-            info!("Removing player: {}", name);
+        if let Some(state) = players.remove(&unique_name) {
+            info!("Removing player: {}", well_known_name);
 
             // Log final play if applicable
             if state.is_playing
@@ -260,6 +295,9 @@ impl MprisMonitor {
                 self.log_play(&state).await;
             }
         }
+
+        // Remove from bus name map
+        self.bus_name_map.write().await.remove(&unique_name);
 
         // Start idle timer if no players remain
         if players.is_empty() {
@@ -401,6 +439,14 @@ impl MprisMonitor {
                 track,
                 is_local,
             } => {
+                let display_name = self
+                    .bus_name_map
+                    .read()
+                    .await
+                    .get(&player)
+                    .cloned()
+                    .unwrap_or_else(|| player.clone());
+
                 // Capture state to log before modifying, avoiding race conditions
                 let state_to_log = {
                     let mut players = self.tracked_players.write().await;
@@ -447,7 +493,7 @@ impl MprisMonitor {
                             };
                             info!(
                                 "[{}] Track changed: {} - {}{}",
-                                player,
+                                display_name,
                                 track.artist.as_deref().unwrap_or("Unknown"),
                                 track.title.as_deref().unwrap_or("Unknown"),
                                 local_info
@@ -466,13 +512,20 @@ impl MprisMonitor {
 
             MprisEvent::Playing { player } => {
                 let mut players = self.tracked_players.write().await;
+                let display_name = self
+                    .bus_name_map
+                    .read()
+                    .await
+                    .get(&player)
+                    .cloned()
+                    .unwrap_or_else(|| player.clone());
 
                 if let Some(state) = players.get_mut(&player) {
                     if !state.is_playing {
                         state.start_playing();
                         info!(
                             "[{}] Playing: {} - {}",
-                            player,
+                            display_name,
                             state.track.artist.as_deref().unwrap_or("Unknown"),
                             state.track.title.as_deref().unwrap_or("Unknown")
                         );
@@ -481,6 +534,14 @@ impl MprisMonitor {
             }
 
             MprisEvent::Paused { player } | MprisEvent::Stopped { player } => {
+                let display_name = self
+                    .bus_name_map
+                    .read()
+                    .await
+                    .get(&player)
+                    .cloned()
+                    .unwrap_or_else(|| player.clone());
+
                 // Capture state and update in one lock acquisition to avoid races
                 let state_to_log = {
                     let mut players = self.tracked_players.write().await;
@@ -503,7 +564,7 @@ impl MprisMonitor {
                     // Update state while holding lock
                     if let Some(state) = players.get_mut(&player) {
                         state.stop_playing();
-                        info!("[{}] Stopped", player);
+                        info!("[{}] Paused", display_name);
                     }
 
                     state_to_log
@@ -520,12 +581,20 @@ impl MprisMonitor {
                 position_us,
             } => {
                 if self.tracking_config.track_seeks {
+                    let display_name = self
+                        .bus_name_map
+                        .read()
+                        .await
+                        .get(&player)
+                        .cloned()
+                        .unwrap_or_else(|| player.clone());
+
                     let mut players = self.tracked_players.write().await;
                     if let Some(state) = players.get_mut(&player) {
                         state.on_seeked(position_us);
                         debug!(
                             "[{}] Seeked to {}s (total seeks: {})",
-                            player,
+                            display_name,
                             position_us / 1_000_000,
                             state.seek_count
                         );
