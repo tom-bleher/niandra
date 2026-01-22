@@ -87,14 +87,15 @@ pub fn truncate(s: &str, max_len: usize) -> String {
 ///
 /// # Arguments
 ///
-/// * `value` - The value to represent
+/// * `value` - The value to represent (negative values treated as 0)
 /// * `max_value` - The maximum value (determines 100% width)
 /// * `width` - The total width of the bar in characters
 pub fn make_bar(value: i64, max_value: i64, width: usize) -> String {
-    if max_value == 0 {
+    if max_value <= 0 || value <= 0 {
         return " ".repeat(width);
     }
-    let filled = ((value as f64 / max_value as f64) * width as f64) as usize;
+    let ratio = (value as f64 / max_value as f64).clamp(0.0, 1.0);
+    let filled = (ratio * width as f64) as usize;
     let empty = width.saturating_sub(filled);
     format!("{}{}", "█".repeat(filled), "░".repeat(empty))
 }
