@@ -2,28 +2,23 @@
 
 A small and simple music listening tracker for GNOME.
 
-![Niandra screenshot](data/screenshots/overview.png)
-
 Niandra tracks what you listen to from any MPRIS-compatible music player on your Linux desktop. It quietly runs in the background, storing your listening history locally, and lets you explore your music habits with a clean, native interface.
 
 ## What Niandra does
 
-Niandra monitors your music players via D-Bus and records each song you listen to. It captures rich metadata—artist, album, track, duration—and builds a personal listening history that stays on your machine.
+Niandra monitors your music players via D-Bus and records each song you listen to. It builds a personal listening history that stays on your machine.
 
-The GUI lets you explore:
+The GUI lets you explore information about your listening habits.
 
-- **Overview** — Total plays, listening time, library size
-- **Top Lists** — Your most-played artists, albums, and tracks
-- **Insights** — Listening streaks, night owl score, skip rate
-- **Heatmap** — When you listen throughout the day
-
-![Niandra artists view](data/screenshots/artists.png)
+<img src="data/screenshots/artists.png" alt="Niandra artists view" style="zoom:33%;" />
 
 ## What Niandra does not do
 
 Niandra is not a music player. It doesn't manage playlists, edit tags, or stream music. It simply observes what you're already listening to and helps you understand your habits.
 
 Niandra does not upload your data anywhere. Everything stays in a local SQLite database on your computer.
+
+We recommend pairing Niandra with [Amberol](https://apps.gnome.org/Amberol/) or other music players and playing `.flac`  or other lossless formats for the best experience :)
 
 ## Installation
 
@@ -71,16 +66,11 @@ sudo apt install libgtk-4-dev libadwaita-1-dev
 
 ## Why "Niandra"?
 
-The name comes from [*Niandra LaDes and Usually Just a T-Shirt*](https://en.wikipedia.org/wiki/Niandra_LaDes_and_Usually_Just_a_T-Shirt), John Frusciante's 1994 solo album. It was one of my early introductions to music that existed outside the mainstream—raw, personal, and unpolished. This project carries a bit of that spirit: a simple tool for people who care about their music.
+The name comes from [*Niandra LaDes and Usually Just a T-Shirt*](https://en.wikipedia.org/wiki/Niandra_LaDes_and_Usually_Just_a_T-Shirt), John Frusciante's 1994 solo album. It was one of my early introductions to music.
 
 ## Contributing
 
-Contributions are welcome! Whether it's bug reports, feature suggestions, or pull requests—all are appreciated.
-
-- **Issues**: [github.com/tombleher/niandra/issues](https://github.com/tombleher/niandra/issues)
-- **Code**: Fork the repo, make your changes, and open a PR
-
-Please be kind and respectful in all interactions.
+Contributions are welcome! Whether it's bug reports, feature suggestions, or pull requests: all are appreciated. Please be kind and respectful in all interactions.
 
 ## License
 
