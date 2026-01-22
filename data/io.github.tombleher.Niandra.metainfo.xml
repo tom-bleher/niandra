@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.tombleher.Niandra</id>
+
+  <name>Niandra</name>
+  <summary>Track your music listening habits</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      Niandra is a small and simple music listening tracker for GNOME. It quietly
+      monitors your music players in the background and builds a personal listening
+      history that stays on your machine.
+    </p>
+    <p>
+      The GUI lets you explore your listening habits: see your most-played artists,
+      albums, and tracks, discover your listening streaks, find out if you're a
+      night owl, and visualize when you listen throughout the day.
+    </p>
+    <p>
+      Niandra works with any MPRIS-compatible music player, including Amberol,
+      GNOME Music, Lollypop, Rhythmbox, and many more.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.tombleher.Niandra.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Top artists view showing your most-played artists</caption>
+      <image>https://raw.githubusercontent.com/tom-bleher/niandra/master/data/screenshots/artists.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/tom-bleher/niandra</url>
+  <url type="bugtracker">https://github.com/tom-bleher/niandra/issues</url>
+  <url type="vcs-browser">https://github.com/tom-bleher/niandra</url>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.1.0" date="2025-01-22">
+      <description>
+        <p>Initial release</p>
+        <ul>
+          <li>Track listening history from MPRIS players</li>
+          <li>View top artists, albums, and tracks</li>
+          <li>Listening insights: streaks, night owl score, skip rate</li>
+          <li>Hourly listening heatmap</li>
+          <li>Filter by time period: week, month, year, all time</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+
+  <developer id="io.github.tombleher">
+    <name>Tom Bleher</name>
+  </developer>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#00BFA5</color>
+    <color type="primary" scheme_preference="dark">#00BFA5</color>
+  </branding>
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Music</category>
+  </categories>
+
+  <keywords>
+    <keyword>music</keyword>
+    <keyword>analytics</keyword>
+    <keyword>statistics</keyword>
+    <keyword>listening</keyword>
+    <keyword>scrobble</keyword>
+    <keyword>tracker</keyword>
+  </keywords>
+</component>

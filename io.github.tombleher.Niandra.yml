@@ -1,0 +1,43 @@
+app-id: io.github.tombleher.Niandra
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: niandra
+
+finish-args:
+  # Display
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # Audio (for PulseAudio volume tracking)
+  - --socket=pulseaudio
+  # D-Bus access for MPRIS
+  - --talk-name=org.mpris.MediaPlayer2.*
+  - --talk-name=org.freedesktop.DBus
+  # Storage for database
+  - --filesystem=xdg-data/music-analytics:create
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/niandra/cargo
+    RUST_BACKTRACE: '1'
+
+modules:
+  - name: niandra
+    buildsystem: simple
+    build-commands:
+      - cargo --offline build --release --features gui
+      - install -Dm755 target/release/niandra /app/bin/niandra
+      - install -Dm755 target/release/music-tracker /app/bin/music-tracker
+      - install -Dm644 data/io.github.tombleher.Niandra.desktop /app/share/applications/io.github.tombleher.Niandra.desktop
+      - install -Dm644 data/io.github.tombleher.Niandra.metainfo.xml /app/share/metainfo/io.github.tombleher.Niandra.metainfo.xml
+      - install -Dm644 data/icons/hicolor/scalable/apps/io.github.tombleher.Niandra.svg /app/share/icons/hicolor/scalable/apps/io.github.tombleher.Niandra.svg
+    sources:
+      - type: git
+        url: https://github.com/tom-bleher/niandra.git
+        tag: v0.1.0
+      # Generated with flatpak-cargo-generator
+      - cargo-sources.json
