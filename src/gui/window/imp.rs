@@ -109,7 +109,7 @@ impl MusicAnalyticsWindow {
         // Configure window
         window.set_default_size(900, 700);
         window.set_size_request(360, 400);  // Minimum size
-        window.set_title(Some("Music Analytics"));
+        window.set_title(Some("Niandra"));
 
         // Set default date filter to All Time (index 3)
         self.date_dropdown.set_selected(3);
