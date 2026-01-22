@@ -127,7 +127,7 @@ pub async fn get_listening_streaks(
     })
 }
 
-/// Get night owl score (percentage of plays between midnight and 6am)
+/// Get night owl score (percentage of plays between 10 PM and 4 AM)
 pub async fn get_night_owl_score(
     conn: &Connection,
     start_date: Option<&str>,
@@ -152,8 +152,10 @@ pub async fn get_night_owl_score(
         return Ok(NightOwlScore::default());
     }
 
-    // Night plays
-    let night_query = format!("{base_query} AND hour_of_day IS NOT NULL AND hour_of_day < 6");
+    // Night plays (10 PM to 4 AM = hours 22, 23, 0, 1, 2, 3)
+    let night_query = format!(
+        "{base_query} AND hour_of_day IS NOT NULL AND (hour_of_day >= 22 OR hour_of_day < 4)"
+    );
     let mut rows = conn.query(&night_query, param_values).await?;
     let night_plays: i64 = if let Some(row) = rows.next().await? {
         row.get(0)?
