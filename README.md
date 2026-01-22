@@ -9,16 +9,14 @@
 <p align="center">
   <img src="data/screenshots/artists.png" alt="Niandra showing top artists" width="600">
 </p>
-
-Niandra quietly runs in the background, tracking what you listen to from any MPRIS-compatible music player. Your listening history stays local—nothing is uploaded anywhere.
+Niandra quietly runs in the background, tracking what you listen to from any MPRIS-compatible music player on your Linux desktop. It quietly runs in the background, storing your  listening history locally, and lets you explore your music habits with a clean, native interface.
 
 ## Features
 
-- **Top artists, albums, and tracks** — See what you listen to most
-- **Listening insights** — Streaks, night owl score, skip rate
-- **Hourly heatmap** — When you listen throughout the day
-- **Time filters** — View stats for the past week, month, year, or all time
-- **Works with any player** — Amberol, GNOME Music, Spotify, Lollypop, and more
+- Displays basic listening analytics
+- Works with any local player: Amberol, GNOME Music, Spotify, Lollypop, and more
+
+Note: Spotify tracking is off by default.
 
 ## Installation
 
@@ -52,22 +50,37 @@ cp data/io.github.tombleher.Niandra.desktop ~/.local/share/applications/
 ### Start the tracker
 
 ```bash
-# Run the background tracker
-music-tracker
-
-# Or install as a systemd service
+# Install as a systemd service
 cp music-tracker.service ~/.config/systemd/user/
 systemctl --user enable --now music-tracker
 ```
 
+### Uninstall
+
+```bash
+# Stop and disable the tracker
+systemctl --user disable --now music-tracker
+
+# Remove binaries and files
+rm ~/.local/bin/niandra ~/.local/bin/music-tracker
+rm ~/.config/systemd/user/music-tracker.service
+rm ~/.local/share/applications/io.github.tombleher.Niandra.desktop
+
+# Optional: remove data and config
+rm -rf ~/.local/share/music-analytics
+rm -rf ~/.config/music-analytics
+```
+
 ## Why "Niandra"?
 
-Named after [*Niandra LaDes and Usually Just a T-Shirt*](https://en.wikipedia.org/wiki/Niandra_LaDes_and_Usually_Just_a_T-Shirt), John Frusciante's 1994 solo album—one of my early introductions to music.
+The name comes from [*Niandra LaDes and Usually Just a T-Shirt*](https://en.wikipedia.org/wiki/Niandra_LaDes_and_Usually_Just_a_T-Shirt), John Frusciante's 1994 solo album. It was one of my early introductions to music.
 
 ## Contributing
 
-Contributions welcome! Bug reports, feature ideas, and pull requests are all appreciated.
+Contributions are welcome! Whether it's bug reports, feature  suggestions, or pull requests: all are appreciated. Please be kind and  respectful in all interactions
 
 ## License
 
-[MIT](LICENSE) — Copyright 2025 Tom Bleher
+Niandra is released under the [MIT License](https://github.com/tom-bleher/niandra/blob/011be77adf31163f4922f1f049af64c46cfa1b1a/LICENSE).
+
+Copyright 2025 Tom Bleher
