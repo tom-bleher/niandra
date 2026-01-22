@@ -32,6 +32,10 @@
       <caption>Top artists view showing your most-played artists</caption>
       <image>https://raw.githubusercontent.com/tom-bleher/niandra/master/data/screenshots/artists.png</image>
     </screenshot>
+    <screenshot>
+      <caption>Overview showing listening statistics</caption>
+      <image>https://raw.githubusercontent.com/tom-bleher/niandra/master/data/screenshots/overview.png</image>
+    </screenshot>
   </screenshots>
 
   <url type="homepage">https://github.com/tom-bleher/niandra</url>
