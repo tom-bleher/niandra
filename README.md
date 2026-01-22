@@ -1,215 +1,89 @@
-# Music Analytics (Rust)
+# Niandra
 
-A high-performance personal music listening analytics system for Linux, written in Rust.
+A small and simple music listening tracker for GNOME.
 
-Monitors MPRIS-compatible media players via D-Bus and stores rich listening data in a local SQLite database. Generates Spotify Wrapped-style statistics.
+![Niandra screenshot](data/screenshots/overview.png)
 
-## Features
+Niandra tracks what you listen to from any MPRIS-compatible music player on your Linux desktop. It quietly runs in the background, storing your listening history locally, and lets you explore your music habits with a clean, native interface.
 
-### Tracking
-- **Event-driven MPRIS monitoring** - Uses async D-Bus signals (not polling) for efficient, instant response
-- **Rich metadata capture** - Artist, album, genre, BPM, release date, MusicBrainz IDs, and more
-- **Seek behavior tracking** - Counts seeks, detects intro skipping, tracks forward/backward seeking
-- **Volume tracking** - Captures PulseAudio/PipeWire volume levels
-- **Context awareness** - Records time of day, day of week, active window, screen state, power state
-- **Local-only mode** - Optionally filter out streaming services, only track local files
-- **Smart scrobbling** - 30s minimum, 50% or 4-minute threshold (Last.fm compatible)
+## What Niandra does
 
-### Database
-- **Local SQLite** - Fast, embedded database via libSQL with no external dependencies
-- **Automatic schema migrations** - Database upgrades handled automatically
+Niandra monitors your music players via D-Bus and records each song you listen to. It captures rich metadata—artist, album, track, duration—and builds a personal listening history that stays on your machine.
 
-### Analytics
-- Top artists, albums, and tracks with play counts and listening time
-- Listening streaks (current and longest)
-- Night owl score (midnight-6am listening percentage)
-- Skip rate and completion metrics
-- Hourly listening heatmap
-- Genre and decade breakdowns
+The GUI lets you explore:
 
-### Optional Features
-- `pulse` - PulseAudio/PipeWire volume tracking (default)
-- `tui` - Terminal UI for live stats (coming soon)
+- **Overview** — Total plays, listening time, library size
+- **Top Lists** — Your most-played artists, albums, and tracks
+- **Insights** — Listening streaks, night owl score, skip rate
+- **Heatmap** — When you listen throughout the day
+
+![Niandra artists view](data/screenshots/artists.png)
+
+## What Niandra does not do
+
+Niandra is not a music player. It doesn't manage playlists, edit tags, or stream music. It simply observes what you're already listening to and helps you understand your habits.
+
+Niandra does not upload your data anywhere. Everything stays in a local SQLite database on your computer.
 
 ## Installation
 
-### From Source
+### From source
 
 ```bash
-# Clone the repository
-git clone https://github.com/tom-bleher/music-analytics-rs
-cd music-analytics-rs
+git clone https://github.com/tombleher/niandra
+cd niandra
 
-# Build release binary
-cargo build --release
+# Build the GUI
+cargo build --release --features gui
 
-# Install binaries
-sudo cp target/release/music-analytics /usr/local/bin/
+# Install
+sudo cp target/release/niandra /usr/local/bin/
 sudo cp target/release/music-tracker /usr/local/bin/
-sudo cp target/release/music-stats /usr/local/bin/
 
-# Or install to user directory
-mkdir -p ~/.local/bin
-cp target/release/music-* ~/.local/bin/
+# Install desktop file for GNOME
+cp data/io.github.tombleher.Niandra.desktop ~/.local/share/applications/
 ```
 
-### Systemd Service
+### Running the tracker
+
+The tracker daemon monitors your music players in the background:
 
 ```bash
-# Copy service file
-cp music-tracker.service ~/.config/systemd/user/
+# Run directly
+music-tracker
 
-# Enable and start
-systemctl --user daemon-reload
+# Or install the systemd service
+cp music-tracker.service ~/.config/systemd/user/
 systemctl --user enable --now music-tracker
 ```
 
-## Usage
+### Dependencies
 
-### Combined CLI
-
+Build dependencies (Fedora/RHEL):
 ```bash
-# Show stats (default: current year)
-music-analytics
-
-# Start tracker daemon
-music-analytics track
-
-# Show stats for different periods
-music-analytics stats --week
-music-analytics stats --month
-music-analytics stats --year 2025
-music-analytics stats --all-time
-
-# Configuration
-music-analytics config --init   # Create default config
-music-analytics config --show   # Show current config
-
-# Database operations
-music-analytics db --info       # Show database info
+sudo dnf install gtk4-devel libadwaita-devel
 ```
 
-### Standalone Binaries
-
+Build dependencies (Debian/Ubuntu):
 ```bash
-# Tracker daemon
-music-tracker
-music-tracker --verbose
-
-# Stats viewer
-music-stats
-music-stats --week
-music-stats --deep              # Advanced analytics
-music-stats --full              # Everything
+sudo apt install libgtk-4-dev libadwaita-1-dev
 ```
 
-## Configuration
+## Why "Niandra"?
 
-Configuration is stored in `~/.config/music-analytics/config.toml`:
-
-```toml
-[general]
-log_level = "info"
-# data_dir = "/custom/path"  # Default: ~/.local/share/music-analytics
-
-[database]
-# path = "/custom/path/listens.db"  # Default: ~/.local/share/music-analytics/listens.db
-
-[tracking]
-min_play_seconds = 30
-min_play_percent = 0.5
-local_only = true           # Only track local files
-track_seeks = true          # Track seek behavior
-track_volume = true         # Track volume levels
-track_context = true        # Track time/activity context
-idle_timeout_seconds = 30   # Exit after no players for this long
-
-[players]
-# Whitelist specific players (empty = all)
-whitelist = []
-
-# Blacklist players
-blacklist = []
-
-# Known local-only players
-local_only_players = [
-    "io.bassi.Amberol",
-    "org.gnome.Lollypop",
-    "org.gnome.Music",
-    "audacious",
-    "deadbeef",
-    "clementine",
-    "strawberry",
-    "rhythmbox",
-]
-```
-
-### Environment Variables
-
-```bash
-# Override config values
-export MUSIC_ANALYTICS_LOG_LEVEL=debug
-```
-
-## Architecture
-
-```
-music-analytics-rs/
-├── src/
-│   ├── lib.rs              # Library exports
-│   ├── main.rs             # Combined CLI entry point
-│   ├── config.rs           # TOML configuration
-│   ├── error.rs            # Error types
-│   ├── track.rs            # Track metadata and state
-│   ├── context.rs          # Listening context capture
-│   ├── db/
-│   │   ├── mod.rs          # Database wrapper (libSQL/Turso)
-│   │   ├── schema.rs       # Schema initialization
-│   │   └── queries.rs      # Query implementations
-│   ├── mpris/
-│   │   ├── mod.rs          # MPRIS module exports
-│   │   ├── player.rs       # MPRIS monitor (async D-Bus)
-│   │   └── metadata.rs     # Metadata parsing
-│   ├── analytics/
-│   │   └── mod.rs          # Analytics functions
-│   └── bin/
-│       ├── tracker.rs      # Standalone tracker daemon
-│       └── stats.rs        # Standalone stats viewer
-├── Cargo.toml
-├── README.md
-└── music-tracker.service   # Systemd unit file
-```
-
-## Comparison with Python Version
-
-| Feature | Python | Rust |
-|---------|--------|------|
-| D-Bus Architecture | Event-driven (dbus_next) | Event-driven (zbus) |
-| Database | SQLite (sqlite3) | libSQL (SQLite) |
-| Performance | Good | Excellent |
-| Memory Usage | ~30MB | ~5MB |
-| Binary Size | N/A (interpreted) | ~3MB |
-| Startup Time | ~200ms | ~10ms |
-
-## Supported Players
-
-Any MPRIS-compatible player, including:
-- Amberol
-- GNOME Music
-- Lollypop
-- Rhythmbox
-- Audacious
-- DeaDBeeF
-- Clementine
-- Strawberry
-- VLC
-- mpv
-- And many more...
-
-## License
-
-MIT
+The name comes from [*Niandra LaDes and Usually Just a T-Shirt*](https://en.wikipedia.org/wiki/Niandra_LaDes_and_Usually_Just_a_T-Shirt), John Frusciante's 1994 solo album. It was one of my early introductions to music that existed outside the mainstream—raw, personal, and unpolished. This project carries a bit of that spirit: a simple tool for people who care about their music.
 
 ## Contributing
 
-Contributions welcome! Please open an issue or PR on GitHub.
+Contributions are welcome! Whether it's bug reports, feature suggestions, or pull requests—all are appreciated.
+
+- **Issues**: [github.com/tombleher/niandra/issues](https://github.com/tombleher/niandra/issues)
+- **Code**: Fork the repo, make your changes, and open a PR
+
+Please be kind and respectful in all interactions.
+
+## License
+
+Niandra is released under the [MIT License](LICENSE).
+
+Copyright 2025 Tom Bleher
