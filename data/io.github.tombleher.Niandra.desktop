@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Niandra
+Comment=Personal music listening analytics
+Exec=niandra
+Icon=io.github.tombleher.Niandra
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Music;
+Keywords=music;analytics;statistics;listening;scrobble;
+StartupNotify=true

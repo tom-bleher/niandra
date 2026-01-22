@@ -28,8 +28,8 @@ pub fn runtime() -> &'static Runtime {
     })
 }
 
-/// Application ID for the GUI application
-pub const APP_ID: &str = "com.github.tombleher.MusicAnalytics";
+/// Application ID for the GUI application (reverse DNS format for GNOME)
+pub const APP_ID: &str = "io.github.tombleher.Niandra";
 
 /// Initialize GTK and libadwaita, then run the application
 ///

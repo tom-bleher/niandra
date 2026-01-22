@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Tom Bleher"]
 description = "Personal music listening analytics for Linux - track your listening habits from MPRIS players"
 license = "MIT"
-repository = "https://github.com/tom-bleher/music-analytics-rs"
+repository = "https://github.com/tombleher/niandra"
 keywords = ["music", "analytics", "mpris", "dbus", "scrobble"]
 categories = ["multimedia", "command-line-utilities"]
 
@@ -84,7 +84,7 @@ name = "music-stats"
 path = "src/bin/stats.rs"
 
 [[bin]]
-name = "music-analytics-gui"
+name = "niandra"
 path = "src/bin/gui.rs"
 required-features = ["gui"]
 

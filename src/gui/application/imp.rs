@@ -79,12 +79,12 @@ impl MusicAnalyticsApplication {
         let window = app.active_window();
 
         let about = adw::AboutDialog::builder()
-            .application_name("Music Analytics")
+            .application_name("Niandra")
             .application_icon(crate::gui::APP_ID)
             .developer_name("Tom Bleher")
             .version(crate::VERSION)
-            .website("https://github.com/tom-bleher/music-analytics-rs")
-            .issue_url("https://github.com/tom-bleher/music-analytics-rs/issues")
+            .website("https://github.com/tombleher/niandra")
+            .issue_url("https://github.com/tombleher/niandra/issues")
             .license_type(gtk4::License::MitX11)
             .developers(vec!["Tom Bleher"])
             .comments("Personal music listening analytics for Linux")
