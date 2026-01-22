@@ -1,6 +1,10 @@
-# Niandra
+<p align="center">
+  <img src="data/icons/hicolor/scalable/apps/io.github.tombleher.Niandra.svg" alt="Niandra" width="128">
+</p>
 
-A small and simple music listening tracker for GNOME.
+<h1 align="center">Niandra</h1>
+
+<p align="center">A small and simple music listening tracker for GNOME.</p>
 
 Niandra tracks what you listen to from any MPRIS-compatible music player on your Linux desktop. It quietly runs in the background, storing your listening history locally, and lets you explore your music habits with a clean, native interface.
 
