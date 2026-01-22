@@ -101,6 +101,26 @@ pub async fn get_play_count(conn: &Connection) -> Result<i64> {
     }
 }
 
+/// SQL expression to normalize artist names by stripping featuring artists
+/// Handles: "feat.", "feat", "ft.", "ft", "(feat.", "(ft.", "featuring", "with"
+/// Note: Does NOT strip "&" as that's often part of duo/group names (e.g., "Simon & Garfunkel")
+const NORMALIZE_ARTIST_SQL: &str = r"
+    CASE
+        WHEN INSTR(LOWER(artist), ' feat. ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), ' feat. ') - 1))
+        WHEN INSTR(LOWER(artist), ' feat ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), ' feat ') - 1))
+        WHEN INSTR(LOWER(artist), ' ft. ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), ' ft. ') - 1))
+        WHEN INSTR(LOWER(artist), ' ft ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), ' ft ') - 1))
+        WHEN INSTR(LOWER(artist), '(feat.') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), '(feat.') - 1))
+        WHEN INSTR(LOWER(artist), '(feat ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), '(feat ') - 1))
+        WHEN INSTR(LOWER(artist), '(ft.') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), '(ft.') - 1))
+        WHEN INSTR(LOWER(artist), '(ft ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), '(ft ') - 1))
+        WHEN INSTR(LOWER(artist), ' featuring ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), ' featuring ') - 1))
+        WHEN INSTR(LOWER(artist), ' with ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), ' with ') - 1))
+        WHEN INSTR(LOWER(artist), '(with ') > 0 THEN TRIM(SUBSTR(artist, 1, INSTR(LOWER(artist), '(with ') - 1))
+        ELSE artist
+    END
+";
+
 /// Get top artists by play count
 pub async fn get_top_artists(
     conn: &Connection,
@@ -108,21 +128,22 @@ pub async fn get_top_artists(
     end_date: Option<&str>,
     limit: u32,
 ) -> Result<Vec<ArtistStats>> {
-    let mut query = r"
+    let mut query = format!(
+        r"
         SELECT
-            artist,
+            {NORMALIZE_ARTIST_SQL} as normalized_artist,
             COUNT(*) as play_count,
             SUM(played_ms) as total_ms
         FROM plays
         WHERE artist IS NOT NULL
     "
-    .to_string();
+    );
 
     let mut param_values = Vec::new();
     DateFilter::new(start_date, end_date).apply(&mut query, &mut param_values);
 
     query.push_str(&format!(
-        " GROUP BY LOWER(artist) ORDER BY play_count DESC LIMIT {limit}"
+        " GROUP BY LOWER({NORMALIZE_ARTIST_SQL}) ORDER BY play_count DESC LIMIT {limit}"
     ));
 
     let mut rows = conn
@@ -148,10 +169,17 @@ pub async fn get_top_albums(
     end_date: Option<&str>,
     limit: u32,
 ) -> Result<Vec<AlbumStats>> {
+    // Use album_artist if available, otherwise use the most frequent artist for the album
+    // The subquery finds the most common artist for each album
     let mut query = r"
         SELECT
             album,
-            MAX(artist) as artist,
+            COALESCE(
+                MAX(album_artist),
+                (SELECT artist FROM plays p2
+                 WHERE LOWER(p2.album) = LOWER(plays.album) AND p2.artist IS NOT NULL
+                 GROUP BY p2.artist ORDER BY COUNT(*) DESC LIMIT 1)
+            ) as artist,
             COUNT(*) as play_count,
             SUM(played_ms) as total_ms
         FROM plays
@@ -190,22 +218,24 @@ pub async fn get_top_tracks(
     end_date: Option<&str>,
     limit: u32,
 ) -> Result<Vec<TrackStats>> {
-    let mut query = r"
+    // Normalize artist names to aggregate tracks with featuring artists
+    let mut query = format!(
+        r"
         SELECT
             title,
-            artist,
+            {NORMALIZE_ARTIST_SQL} as normalized_artist,
             COUNT(*) as play_count,
             SUM(played_ms) as total_ms
         FROM plays
         WHERE title IS NOT NULL
     "
-    .to_string();
+    );
 
     let mut param_values = Vec::new();
     DateFilter::new(start_date, end_date).apply(&mut query, &mut param_values);
 
     query.push_str(&format!(
-        " GROUP BY title, artist ORDER BY play_count DESC LIMIT {limit}"
+        " GROUP BY LOWER(title), LOWER({NORMALIZE_ARTIST_SQL}) ORDER BY play_count DESC LIMIT {limit}"
     ));
 
     let mut rows = conn
