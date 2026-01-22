@@ -31,6 +31,11 @@ clap = { version = "4", features = ["derive", "env"] }
 ratatui = { version = "0.29", optional = true }
 crossterm = { version = "0.28", optional = true }
 
+# GTK4/Libadwaita GUI
+gtk4 = { version = "0.9", optional = true, features = ["v4_14"] }
+libadwaita = { version = "0.7", optional = true, features = ["v1_5"] }
+async-channel = { version = "2.3", optional = true }
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -62,8 +67,9 @@ urlencoding = "2"
 [features]
 default = ["pulse"]
 tui = ["ratatui", "crossterm"]
+gui = ["gtk4", "libadwaita", "async-channel"]
 pulse = ["libpulse-binding"]
-full = ["tui", "pulse"]
+full = ["tui", "gui", "pulse"]
 
 [[bin]]
 name = "music-analytics"
@@ -76,6 +82,11 @@ path = "src/bin/tracker.rs"
 [[bin]]
 name = "music-stats"
 path = "src/bin/stats.rs"
+
+[[bin]]
+name = "music-analytics-gui"
+path = "src/bin/gui.rs"
+required-features = ["gui"]
 
 [profile.release]
 lto = true

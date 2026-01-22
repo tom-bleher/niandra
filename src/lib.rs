@@ -25,6 +25,8 @@ pub(crate) mod context;
 pub mod db;
 pub mod display;
 pub mod error;
+#[cfg(feature = "gui")]
+pub mod gui;
 pub mod mpris;
 pub(crate) mod track;
 
