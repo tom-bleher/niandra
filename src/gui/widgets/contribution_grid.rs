@@ -1,5 +1,6 @@
 //! ContributionGrid widget for visualizing daily listening patterns (GitHub-style)
 
+use chrono::Datelike;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
