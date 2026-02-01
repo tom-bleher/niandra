@@ -208,6 +208,17 @@ impl Database {
         let conn = self.connection().await?;
         crate::analytics::get_skip_rate(&conn, start_date, end_date).await
     }
+
+    /// Get daily contribution data for the contribution graph
+    #[allow(dead_code)]
+    pub async fn get_daily_contributions(
+        &self,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+    ) -> Result<crate::analytics::DailyContribution> {
+        let conn = self.connection().await?;
+        crate::analytics::get_daily_contributions(&conn, start_date, end_date).await
+    }
 }
 
 /// Aggregated statistics for an artist.

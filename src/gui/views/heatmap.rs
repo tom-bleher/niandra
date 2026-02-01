@@ -7,7 +7,7 @@ use libadwaita as adw;
 use libadwaita::prelude::*;
 use std::cell::RefCell;
 
-use crate::gui::widgets::HeatmapGrid;
+use crate::gui::widgets::{ContributionData, ContributionGrid, HeatmapGrid};
 use crate::gui::window::HeatmapData;
 
 mod imp {
@@ -17,6 +17,7 @@ mod imp {
     pub struct HeatmapView {
         pub stack: gtk4::Stack,
         pub spinner: gtk4::Spinner,
+        pub contribution_grid: RefCell<Option<ContributionGrid>>,
         pub heatmap_grid: RefCell<Option<HeatmapGrid>>,
         pub peak_hour_label: gtk4::Label,
         pub peak_count_label: gtk4::Label,
@@ -27,6 +28,7 @@ mod imp {
             Self {
                 stack: gtk4::Stack::new(),
                 spinner: gtk4::Spinner::new(),
+                contribution_grid: RefCell::new(None),
                 heatmap_grid: RefCell::new(None),
                 peak_hour_label: gtk4::Label::new(None),
                 peak_count_label: gtk4::Label::new(None),
@@ -79,7 +81,84 @@ mod imp {
             let content = gtk4::Box::new(gtk4::Orientation::Vertical, 24);
             content.set_halign(gtk4::Align::Center);
 
-            // Title
+            // Daily Contribution Graph (GitHub-style)
+            let contrib_title_box = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
+            contrib_title_box.set_halign(gtk4::Align::Center);
+
+            let contrib_title = gtk4::Label::new(Some("Daily Listening Activity"));
+            contrib_title.add_css_class("title-2");
+            contrib_title_box.append(&contrib_title);
+
+            let contrib_subtitle = gtk4::Label::new(Some("Your listening history over time"));
+            contrib_subtitle.add_css_class("dim-label");
+            contrib_title_box.append(&contrib_subtitle);
+
+            content.append(&contrib_title_box);
+
+            // Contribution grid
+            let contrib_frame = gtk4::Frame::new(None);
+            contrib_frame.add_css_class("card");
+
+            let contrib_grid = ContributionGrid::new();
+            contrib_grid.set_margin_top(16);
+            contrib_grid.set_margin_bottom(16);
+            contrib_grid.set_margin_start(16);
+            contrib_grid.set_margin_end(16);
+            contrib_frame.set_child(Some(&contrib_grid));
+            *self.contribution_grid.borrow_mut() = Some(contrib_grid);
+
+            content.append(&contrib_frame);
+
+            // Contribution legend
+            let contrib_legend = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
+            contrib_legend.set_halign(gtk4::Align::Center);
+            contrib_legend.set_margin_bottom(24);
+
+            let legend_less = gtk4::Label::new(Some("Less"));
+            legend_less.add_css_class("dim-label");
+            legend_less.add_css_class("caption");
+            contrib_legend.append(&legend_less);
+
+            // GitHub-style color swatches
+            let colors = [
+                (0.922, 0.929, 0.941), // #ebedf0
+                (0.608, 0.914, 0.659), // #9be9a8
+                (0.251, 0.769, 0.388), // #40c463
+                (0.188, 0.631, 0.306), // #30a14e
+                (0.129, 0.431, 0.224), // #216e39
+            ];
+
+            for (r, g, b) in colors {
+                let swatch = gtk4::DrawingArea::new();
+                swatch.set_content_width(12);
+                swatch.set_content_height(12);
+
+                swatch.set_draw_func(move |_, cr, width, height| {
+                    cr.set_source_rgb(r, g, b);
+                    // Draw rounded rectangle
+                    let radius = 2.0;
+                    let w = width as f64;
+                    let h = height as f64;
+                    cr.new_path();
+                    cr.arc(radius, radius, radius, std::f64::consts::PI, 1.5 * std::f64::consts::PI);
+                    cr.arc(w - radius, radius, radius, 1.5 * std::f64::consts::PI, 2.0 * std::f64::consts::PI);
+                    cr.arc(w - radius, h - radius, radius, 0.0, 0.5 * std::f64::consts::PI);
+                    cr.arc(radius, h - radius, radius, 0.5 * std::f64::consts::PI, std::f64::consts::PI);
+                    cr.close_path();
+                    let _ = cr.fill();
+                });
+
+                contrib_legend.append(&swatch);
+            }
+
+            let legend_more = gtk4::Label::new(Some("More"));
+            legend_more.add_css_class("dim-label");
+            legend_more.add_css_class("caption");
+            contrib_legend.append(&legend_more);
+
+            content.append(&contrib_legend);
+
+            // Hourly Heatmap Title
             let title_box = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
             title_box.set_halign(gtk4::Align::Center);
 
@@ -93,7 +172,7 @@ mod imp {
 
             content.append(&title_box);
 
-            // Heatmap
+            // Hourly Heatmap
             let grid_frame = gtk4::Frame::new(None);
             grid_frame.add_css_class("card");
 
@@ -217,6 +296,15 @@ impl HeatmapView {
         imp.peak_count_label.set_text(&data.peak_count.to_string());
 
         self.set_loading(false);
+    }
+
+    /// Set contribution data for the daily grid
+    pub fn set_contribution_data(&self, data: ContributionData) {
+        let imp = self.imp();
+
+        if let Some(grid) = imp.contribution_grid.borrow().as_ref() {
+            grid.set_data(data);
+        }
     }
 
     /// Set loading state

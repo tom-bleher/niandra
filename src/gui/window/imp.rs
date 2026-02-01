@@ -12,6 +12,7 @@ use libadwaita::subclass::prelude::*;
 
 use crate::db::{AlbumStats, ArtistStats, OverviewStats, TrackStats};
 use crate::gui::views::{HeatmapView, InsightsView, OverviewView, TopListsView};
+use crate::gui::widgets::ContributionData;
 use crate::gui::window::{DateFilter, HeatmapData, InsightsData};
 use crate::{Config, Database};
 
@@ -24,6 +25,7 @@ pub enum DataMessage {
     Tracks(Vec<TrackStats>),
     Insights(InsightsData),
     Heatmap(HeatmapData),
+    Contribution(ContributionData),
     Error(String),
 }
 
@@ -285,6 +287,11 @@ impl MusicAnalyticsWindow {
                     view.set_data(&data);
                 }
             }
+            DataMessage::Contribution(data) => {
+                if let Some(view) = self.heatmap_view.borrow().as_ref() {
+                    view.set_contribution_data(data);
+                }
+            }
             DataMessage::Error(err) => {
                 self.show_error(&err);
             }
@@ -390,6 +397,12 @@ impl MusicAnalyticsWindow {
             if let Some(data) = heatmap_data {
                 let _ = sender.send(DataMessage::Heatmap(data)).await;
             }
+
+            // Load contribution data
+            let contribution_data = load_contribution_data(&db, start_date.as_deref(), end_date.as_deref()).await;
+            if let Some(data) = contribution_data {
+                let _ = sender.send(DataMessage::Contribution(data)).await;
+            }
         });
     }
 
@@ -441,5 +454,19 @@ async fn load_heatmap_data(
         hours,
         peak_hour: heatmap.peak_hour,
         peak_count: heatmap.peak_count,
+    })
+}
+
+async fn load_contribution_data(
+    db: &Database,
+    start_date: Option<&str>,
+    end_date: Option<&str>,
+) -> Option<ContributionData> {
+    let contrib = db.get_daily_contributions(start_date, end_date).await.ok()?;
+
+    Some(ContributionData {
+        days: contrib.days,
+        max_plays: contrib.max_plays,
+        total_plays: contrib.total_plays,
     })
 }

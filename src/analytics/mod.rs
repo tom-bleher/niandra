@@ -289,3 +289,52 @@ pub async fn get_skip_rate(
 
     Ok((skipped, total, rate))
 }
+
+/// Daily contribution data
+#[derive(Debug, Clone, Default)]
+pub struct DailyContribution {
+    /// Map of date string (YYYY-MM-DD) to play count
+    pub days: std::collections::HashMap<String, i64>,
+    /// Maximum plays in a single day
+    pub max_plays: i64,
+    /// Total plays in the period
+    pub total_plays: i64,
+}
+
+/// Get daily play counts for the contribution graph
+pub async fn get_daily_contributions(
+    conn: &Connection,
+    start_date: Option<&str>,
+    end_date: Option<&str>,
+) -> Result<DailyContribution> {
+    let mut query =
+        "SELECT DATE(datetime(timestamp, 'localtime')) as play_date, COUNT(*) as count FROM plays WHERE 1=1".to_string();
+    let mut params = Vec::new();
+
+    DateFilter::new(start_date, end_date).apply(&mut query, &mut params);
+
+    query.push_str(" GROUP BY play_date ORDER BY play_date");
+
+    let mut rows = conn
+        .query(&query, DateFilter::to_values(&params))
+        .await?;
+
+    let mut days = std::collections::HashMap::new();
+    let mut max_plays: i64 = 0;
+    let mut total_plays: i64 = 0;
+
+    while let Some(row) = rows.next().await? {
+        let date: String = row.get(0)?;
+        let count: i64 = row.get(1)?;
+
+        days.insert(date, count);
+        max_plays = max_plays.max(count);
+        total_plays += count;
+    }
+
+    Ok(DailyContribution {
+        days,
+        max_plays,
+        total_plays,
+    })
+}
