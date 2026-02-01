@@ -51,18 +51,7 @@ The install script will:
 ### Uninstall
 
 ```bash
-# Stop and disable the tracker
-systemctl --user disable --now music-tracker
-
-# Remove binaries and files
-rm ~/.local/bin/niandra ~/.local/bin/music-tracker
-rm ~/.config/systemd/user/music-tracker.service
-rm ~/.local/share/applications/io.github.tombleher.Niandra.desktop
-rm ~/.config/autostart/io.github.tombleher.Niandra.Tracker.desktop
-
-# Optional: remove data and config
-rm -rf ~/.local/share/music-analytics
-rm -rf ~/.config/music-analytics
+./uninstall.sh
 ```
 
 ## Why "Niandra"?
