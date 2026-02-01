@@ -56,6 +56,7 @@ impl Default for MusicAnalyticsWindow {
         Self {
             view_stack: adw::ViewStack::new(),
             date_dropdown: gtk4::DropDown::from_strings(&[
+                "Today",
                 "Past Week",
                 "Past Month",
                 "Past Year",
@@ -111,8 +112,8 @@ impl MusicAnalyticsWindow {
         window.set_size_request(360, 400);  // Minimum size
         window.set_title(Some("Niandra"));
 
-        // Set default date filter to All Time (index 3)
-        self.date_dropdown.set_selected(3);
+        // Set default date filter to All Time (index 4)
+        self.date_dropdown.set_selected(4);
 
         // Create the main toolbar view
         let toolbar_view = adw::ToolbarView::new();
@@ -160,9 +161,10 @@ impl MusicAnalyticsWindow {
                 self,
                 move |dropdown| {
                     let filter = match dropdown.selected() {
-                        0 => DateFilter::Week,
-                        1 => DateFilter::Month,
-                        2 => DateFilter::Year,
+                        0 => DateFilter::Today,
+                        1 => DateFilter::Week,
+                        2 => DateFilter::Month,
+                        3 => DateFilter::Year,
                         _ => DateFilter::AllTime,
                     };
                     imp.date_filter.set(filter);

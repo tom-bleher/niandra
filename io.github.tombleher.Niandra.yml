@@ -35,6 +35,8 @@ modules:
       - install -Dm644 data/io.github.tombleher.Niandra.desktop /app/share/applications/io.github.tombleher.Niandra.desktop
       - install -Dm644 data/io.github.tombleher.Niandra.metainfo.xml /app/share/metainfo/io.github.tombleher.Niandra.metainfo.xml
       - install -Dm644 data/icons/hicolor/scalable/apps/io.github.tombleher.Niandra.svg /app/share/icons/hicolor/scalable/apps/io.github.tombleher.Niandra.svg
+      # Install autostart entry for the tracker daemon
+      - install -Dm644 data/io.github.tombleher.Niandra.Tracker.desktop /app/etc/xdg/autostart/io.github.tombleher.Niandra.Tracker.desktop
     sources:
       - type: git
         url: https://github.com/tom-bleher/niandra.git

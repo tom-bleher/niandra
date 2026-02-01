@@ -55,6 +55,7 @@ impl MusicAnalyticsWindow {
 /// Date filter options for statistics queries
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DateFilter {
+    Today,
     Week,
     Month,
     Year,
@@ -69,9 +70,11 @@ impl DateFilter {
         use chrono::{Days, Local, Months};
 
         let today = Local::now().date_naive();
-        let end = today.format("%Y-%m-%d").to_string();
+        let start_of_today = today.format("%Y-%m-%d").to_string();
+        let end = format!("{} 23:59:59", start_of_today);
 
         match self {
+            Self::Today => (Some(start_of_today), Some(end)),
             Self::Week => {
                 let start = today
                     .checked_sub_days(Days::new(7))
@@ -98,6 +101,7 @@ impl DateFilter {
     #[must_use]
     pub const fn display_name(self) -> &'static str {
         match self {
+            Self::Today => "Today",
             Self::Week => "Past Week",
             Self::Month => "Past Month",
             Self::Year => "Past Year",
@@ -108,6 +112,6 @@ impl DateFilter {
     /// Get all filter options
     #[must_use]
     pub const fn all() -> &'static [Self] {
-        &[Self::Week, Self::Month, Self::Year, Self::AllTime]
+        &[Self::Today, Self::Week, Self::Month, Self::Year, Self::AllTime]
     }
 }

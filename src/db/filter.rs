@@ -14,14 +14,14 @@ impl<'a> DateFilter<'a> {
     }
 
     /// Append date filter clauses to a query string.
-    /// Returns the parameter values to use with the query.
+    /// Uses localtime conversion since timestamps are stored in UTC but filters use local dates.
     pub fn apply(&self, query: &mut String, params: &mut Vec<String>) {
         if let Some(start) = self.start {
-            query.push_str(" AND timestamp >= ?");
+            query.push_str(" AND datetime(timestamp, 'localtime') >= ?");
             params.push(start.to_string());
         }
         if let Some(end) = self.end {
-            query.push_str(" AND timestamp <= ?");
+            query.push_str(" AND datetime(timestamp, 'localtime') <= ?");
             params.push(end.to_string());
         }
     }
@@ -59,7 +59,7 @@ mod tests {
 
         assert_eq!(
             query,
-            "SELECT * FROM plays WHERE 1=1 AND timestamp >= ?"
+            "SELECT * FROM plays WHERE 1=1 AND datetime(timestamp, 'localtime') >= ?"
         );
         assert_eq!(params, vec!["2024-01-01"]);
     }
@@ -73,7 +73,7 @@ mod tests {
 
         assert_eq!(
             query,
-            "SELECT * FROM plays WHERE 1=1 AND timestamp >= ? AND timestamp <= ?"
+            "SELECT * FROM plays WHERE 1=1 AND datetime(timestamp, 'localtime') >= ? AND datetime(timestamp, 'localtime') <= ?"
         );
         assert_eq!(params, vec!["2024-01-01", "2024-12-31"]);
     }

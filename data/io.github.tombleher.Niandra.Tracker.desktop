@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Niandra Music Tracker
+Comment=Background service to track music listening
+Exec=music-tracker
+Icon=io.github.tombleher.Niandra
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=5
+Categories=AudioVideo;Audio;Music;
