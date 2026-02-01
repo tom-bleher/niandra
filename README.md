@@ -24,14 +24,14 @@ Note: Spotify tracking is off by default.
 
 ### Dependencies
 
-Fedora/RHEL:
-```bash
-sudo dnf install gtk4-devel libadwaita-devel
-```
-
 Debian/Ubuntu:
 ```bash
 sudo apt install libgtk-4-dev libadwaita-1-dev
+```
+
+Fedora/RHEL:
+```bash
+sudo dnf install gtk4-devel libadwaita-devel
 ```
 
 ### Build and install
@@ -72,6 +72,10 @@ The name comes from [*Niandra LaDes and Usually Just a T-Shirt*](https://en.wiki
 ## Contributing
 
 Contributions are welcome! Whether it's bug reports, feature suggestions, or pull requests: all are appreciated. Please be kind and respectful in all interactions.
+
+## Disclaimer
+
+This project was largely vibe coded with [Claude Opus 4.5](https://www.anthropic.com/claude).
 
 ## License
 
