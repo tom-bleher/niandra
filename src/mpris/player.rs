@@ -437,7 +437,7 @@ impl MprisMonitor {
             MprisEvent::TrackChanged {
                 player,
                 track,
-                is_local,
+                is_local: _,
             } => {
                 let display_name = self
                     .bus_name_map
@@ -446,6 +446,12 @@ impl MprisMonitor {
                     .get(&player)
                     .cloned()
                     .unwrap_or_else(|| player.clone());
+
+                // Recompute is_local using the well-known player name (not the D-Bus unique name)
+                let is_local = track.is_local_source(
+                    &self.player_config.local_only_players,
+                    Some(&display_name),
+                );
 
                 // Capture state to log before modifying, avoiding race conditions
                 let state_to_log = {
