@@ -39,7 +39,6 @@ sudo dnf install gtk4-devel libadwaita-devel
 ```bash
 git clone https://github.com/tom-bleher/niandra
 cd niandra
-cargo build --release --features full
 ./install.sh
 ```
 

@@ -1,8 +1,10 @@
 #!/bin/bash
 # Install script for Niandra music tracker
-# Run this after building with: cargo build --release --features full
 
 set -e
+
+echo "Building Niandra..."
+cargo build --release --features full
 
 PREFIX="${PREFIX:-$HOME/.local}"
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
