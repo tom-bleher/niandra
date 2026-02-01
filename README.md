@@ -9,12 +9,14 @@
 <p align="center">
   <img src="data/screenshots/artists.png" alt="Niandra showing top artists" width="600">
 </p>
-Niandra quietly runs in the background, tracking what you listen to from any MPRIS-compatible music player on your Linux desktop. It quietly runs in the background, storing your  listening history locally, and lets you explore your music habits with a clean, native interface.
+
+Niandra tracks what you listen to from any MPRIS-compatible music player on your Linux desktop. It stores your listening history locally and lets you explore your music habits with a clean, native interface.
 
 ## Features
 
 - Displays basic listening analytics
 - Works with any local player: Amberol, GNOME Music, Spotify, Lollypop, and more
+- Background tracker auto-starts on login and when launching the GUI
 
 Note: Spotify tracking is off by default.
 
@@ -32,28 +34,19 @@ Debian/Ubuntu:
 sudo apt install libgtk-4-dev libadwaita-1-dev
 ```
 
-### Build from source
+### Build and install
 
 ```bash
 git clone https://github.com/tom-bleher/niandra
 cd niandra
-cargo build --release --features gui
-
-# Install binaries
-cp target/release/niandra ~/.local/bin/
-cp target/release/music-tracker ~/.local/bin/
-
-# Install desktop file
-cp data/io.github.tombleher.Niandra.desktop ~/.local/share/applications/
+cargo build --release --features full
+./install.sh
 ```
 
-### Start the tracker
-
-```bash
-# Install as a systemd service
-cp music-tracker.service ~/.config/systemd/user/
-systemctl --user enable --now music-tracker
-```
+The install script will:
+- Install binaries to `~/.local/bin/`
+- Set up the systemd user service (auto-starts on login)
+- Install desktop entries and icons
 
 ### Uninstall
 
@@ -65,6 +58,7 @@ systemctl --user disable --now music-tracker
 rm ~/.local/bin/niandra ~/.local/bin/music-tracker
 rm ~/.config/systemd/user/music-tracker.service
 rm ~/.local/share/applications/io.github.tombleher.Niandra.desktop
+rm ~/.config/autostart/io.github.tombleher.Niandra.Tracker.desktop
 
 # Optional: remove data and config
 rm -rf ~/.local/share/music-analytics
@@ -77,10 +71,10 @@ The name comes from [*Niandra LaDes and Usually Just a T-Shirt*](https://en.wiki
 
 ## Contributing
 
-Contributions are welcome! Whether it's bug reports, feature  suggestions, or pull requests: all are appreciated. Please be kind and  respectful in all interactions
+Contributions are welcome! Whether it's bug reports, feature suggestions, or pull requests: all are appreciated. Please be kind and respectful in all interactions.
 
 ## License
 
-Niandra is released under the [MIT License](https://github.com/tom-bleher/niandra/blob/011be77adf31163f4922f1f049af64c46cfa1b1a/LICENSE).
+Niandra is released under the [MIT License](LICENSE).
 
-Copyright 2025 Tom Bleher
+Copyright 2026 Tom Bleher
