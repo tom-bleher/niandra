@@ -29,6 +29,9 @@ pub enum MprisEvent {
     TrackChanged {
         player: String,
         track: Track,
+        /// Whether the track is from a local source.
+        /// Currently recomputed at handling time but kept for future use.
+        #[allow(dead_code)]
         is_local: bool,
     },
     /// Playback started

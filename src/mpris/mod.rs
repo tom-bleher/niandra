@@ -16,104 +16,114 @@ pub const MPRIS_PREFIX: &str = "org.mpris.MediaPlayer2.";
 pub const MPRIS_PATH: &str = "/org/mpris/MediaPlayer2";
 pub const MPRIS_PLAYER_IFACE: &str = "org.mpris.MediaPlayer2.Player";
 
-/// Extract a string value from a D-Bus variant
-pub fn extract_string(value: &OwnedValue) -> Option<String> {
-    // Try to get as a Value first, then match on Str variant
-    if let Ok(Value::Str(s)) = value.try_into() {
-        return Some(s.to_string());
-    }
-
-    // Try direct string conversion
-    if let Ok(s) = <&str>::try_from(value) {
-        return Some(s.to_string());
-    }
-
-    // Try String
-    if let Ok(s) = String::try_from(value.clone()) {
-        return Some(s);
-    }
-
-    None
+/// Trait for extracting typed values from D-Bus variants
+pub trait ExtractValue: Sized {
+    /// Extract a value from a D-Bus OwnedValue
+    fn extract(value: &OwnedValue) -> Option<Self>;
 }
 
-/// Extract string array from D-Bus variant
-pub fn extract_string_array(value: &OwnedValue) -> Option<Vec<String>> {
-    // Try as Vec<String> directly
-    if let Ok(arr) = Vec::<String>::try_from(value.clone()) {
-        if !arr.is_empty() {
-            return Some(arr);
+impl ExtractValue for String {
+    fn extract(value: &OwnedValue) -> Option<Self> {
+        if let Ok(Value::Str(s)) = value.try_into() {
+            return Some(s.to_string());
         }
+        <&str>::try_from(value)
+            .map(String::from)
+            .or_else(|_| String::try_from(value.clone()))
+            .ok()
     }
+}
 
-    // Try as Value::Array and extract strings
-    let val = Value::from(value.clone());
-    if let Value::Array(arr) = val {
-        let strings: Vec<String> = arr
-            .iter()
-            .filter_map(|v| {
-                if let Value::Str(s) = v {
-                    Some(s.to_string())
+impl ExtractValue for Vec<String> {
+    fn extract(value: &OwnedValue) -> Option<Self> {
+        Vec::<String>::try_from(value.clone())
+            .ok()
+            .filter(|arr| !arr.is_empty())
+            .or_else(|| {
+                if let Value::Array(arr) = Value::from(value.clone()) {
+                    let strings: Vec<_> = arr
+                        .iter()
+                        .filter_map(|v| match v {
+                            Value::Str(s) => Some(s.to_string()),
+                            _ => None,
+                        })
+                        .collect();
+                    (!strings.is_empty()).then_some(strings)
                 } else {
                     None
                 }
             })
-            .collect();
-        if !strings.is_empty() {
-            return Some(strings);
+    }
+}
+
+/// Macro to implement `ExtractValue` for integer types with D-Bus variant fallbacks
+macro_rules! impl_extract_int {
+    ($target:ty, [$($variant:ident => $conv:expr),+ $(,)?]) => {
+        impl ExtractValue for $target {
+            fn extract(value: &OwnedValue) -> Option<Self> {
+                <$target>::try_from(value.clone()).ok().or_else(|| {
+                    match Value::from(value.clone()) {
+                        $(Value::$variant(v) => $conv(v),)+
+                        _ => None,
+                    }
+                })
+            }
         }
-    }
-
-    None
+    };
 }
 
-/// Extract i64 from D-Bus variant
-pub fn extract_i64(value: &OwnedValue) -> Option<i64> {
-    // Try direct i64
-    if let Ok(v) = i64::try_from(value.clone()) {
-        return Some(v);
-    }
+impl_extract_int!(i64, [
+    I64 => Some,
+    I32 => |v| Some(i64::from(v)),
+    U64 => |v| i64::try_from(v).ok(),
+    U32 => |v| Some(i64::from(v)),
+    I16 => |v| Some(i64::from(v)),
+    U16 => |v| Some(i64::from(v)),
+]);
 
-    // Try other integer types via Value with proper conversions
-    match Value::from(value.clone()) {
-        Value::I64(v) => Some(v),
-        Value::I32(v) => Some(i64::from(v)),
-        Value::U64(v) => i64::try_from(v).ok(), // Returns None if overflow
-        Value::U32(v) => Some(i64::from(v)),
-        Value::I16(v) => Some(i64::from(v)),
-        Value::U16(v) => Some(i64::from(v)),
-        _ => None,
+impl_extract_int!(i32, [
+    I32 => Some,
+    I64 => |v| i32::try_from(v).ok(),
+    U32 => |v| i32::try_from(v).ok(),
+    I16 => |v| Some(i32::from(v)),
+    U16 => |v| Some(i32::from(v)),
+]);
+
+impl ExtractValue for f64 {
+    fn extract(value: &OwnedValue) -> Option<Self> {
+        f64::try_from(value.clone())
+            .ok()
+            .or_else(|| match Value::from(value.clone()) {
+                Value::F64(v) => Some(v),
+                _ => None,
+            })
     }
 }
 
-/// Extract f64 from D-Bus variant
-pub fn extract_f64(value: &OwnedValue) -> Option<f64> {
-    // Try direct f64
-    if let Ok(v) = f64::try_from(value.clone()) {
-        return Some(v);
-    }
-
-    // Try via Value
-    if let Value::F64(v) = Value::from(value.clone()) {
-        return Some(v);
-    }
-
-    None
+/// Convenience function to extract a value using the ExtractValue trait
+pub fn extract<T: ExtractValue>(value: &OwnedValue) -> Option<T> {
+    T::extract(value)
 }
 
-/// Extract i32 from D-Bus variant
-pub fn extract_i32(value: &OwnedValue) -> Option<i32> {
-    // Try direct i32
-    if let Ok(v) = i32::try_from(value.clone()) {
-        return Some(v);
+/// Extract a string array and join with separator, falling back to a single string
+pub fn extract_or_join_array(value: &OwnedValue, separator: &str) -> Option<String> {
+    if let Some(arr) = Vec::<String>::extract(value) {
+        Some(arr.join(separator))
+    } else {
+        String::extract(value)
     }
+}
 
-    // Try via Value with proper conversions
-    match Value::from(value.clone()) {
-        Value::I32(v) => Some(v),
-        Value::I64(v) => i32::try_from(v).ok(), // Returns None if out of range
-        Value::U32(v) => i32::try_from(v).ok(), // Returns None if out of range
-        Value::I16(v) => Some(i32::from(v)),
-        Value::U16(v) => Some(i32::from(v)),
-        _ => None,
+/// Extract the first element of a string array, falling back to a single string
+pub fn extract_first_or_string(value: &OwnedValue) -> Option<String> {
+    if let Some(arr) = Vec::<String>::extract(value) {
+        arr.into_iter().next()
+    } else {
+        String::extract(value)
     }
+}
+
+/// Extract a string from a D-Bus value.
+pub fn extract_string(value: &OwnedValue) -> Option<String> {
+    String::extract(value)
 }
