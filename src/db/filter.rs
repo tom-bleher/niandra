@@ -1,5 +1,7 @@
 //! Query filter utilities for building parameterized SQL queries.
 
+use duckdb::ToSql;
+
 /// Date range filter for queries.
 #[derive(Debug, Clone, Default)]
 pub struct DateFilter<'a> {
@@ -14,24 +16,21 @@ impl<'a> DateFilter<'a> {
     }
 
     /// Append date filter clauses to a query string.
-    /// Uses localtime conversion since timestamps are stored in UTC but filters use local dates.
+    /// DuckDB handles timezone conversion automatically when comparing timestamps.
     pub fn apply(&self, query: &mut String, params: &mut Vec<String>) {
         if let Some(start) = self.start {
-            query.push_str(" AND datetime(timestamp, 'localtime') >= ?");
+            query.push_str(" AND timestamp >= ?");
             params.push(start.to_string());
         }
         if let Some(end) = self.end {
-            query.push_str(" AND datetime(timestamp, 'localtime') <= ?");
+            query.push_str(" AND timestamp <= ?");
             params.push(end.to_string());
         }
     }
 
-    /// Convert string params to libsql Values.
-    pub fn to_values(params: &[String]) -> Vec<libsql::Value> {
-        params
-            .iter()
-            .map(|s| libsql::Value::Text(s.clone()))
-            .collect()
+    /// Convert string params to a vector of references suitable for DuckDB.
+    pub fn params_as_refs(params: &[String]) -> Vec<&dyn ToSql> {
+        params.iter().map(|s| s as &dyn ToSql).collect()
     }
 }
 
@@ -59,7 +58,7 @@ mod tests {
 
         assert_eq!(
             query,
-            "SELECT * FROM plays WHERE 1=1 AND datetime(timestamp, 'localtime') >= ?"
+            "SELECT * FROM plays WHERE 1=1 AND timestamp >= ?"
         );
         assert_eq!(params, vec!["2024-01-01"]);
     }
@@ -73,7 +72,7 @@ mod tests {
 
         assert_eq!(
             query,
-            "SELECT * FROM plays WHERE 1=1 AND datetime(timestamp, 'localtime') >= ? AND datetime(timestamp, 'localtime') <= ?"
+            "SELECT * FROM plays WHERE 1=1 AND timestamp >= ? AND timestamp <= ?"
         );
         assert_eq!(params, vec!["2024-01-01", "2024-12-31"]);
     }

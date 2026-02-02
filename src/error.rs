@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Database error: {0}")]
-    Database(#[from] libsql::Error),
+    Database(#[from] duckdb::Error),
 
     #[error("D-Bus error: {0}")]
     DBus(#[from] zbus::Error),

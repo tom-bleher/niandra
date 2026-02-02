@@ -1,6 +1,7 @@
-//! Database module using libSQL
+//! Database module using DuckDB
 //!
-//! Local SQLite database for music listening analytics.
+//! High-performance OLAP database for music listening analytics.
+//! DuckDB provides faster analytical queries compared to SQLite.
 
 mod filter;
 mod queries;
@@ -8,21 +9,20 @@ mod schema;
 
 pub use filter::DateFilter;
 
-use libsql::{Builder, Connection, Database as LibsqlDatabase};
+use duckdb::Connection;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 
 use crate::config::DatabaseConfig;
 use crate::context::ListeningContext;
 use crate::error::Result;
 use crate::track::TrackState;
 
-/// Database wrapper for music analytics
+/// Database wrapper for music analytics using DuckDB
 #[derive(Clone)]
 pub struct Database {
-    db: Arc<LibsqlDatabase>,
-    conn: Arc<RwLock<Option<Connection>>>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl Database {
@@ -42,16 +42,17 @@ impl Database {
             path.to_path_buf()
         } else {
             std::fs::create_dir_all(data_dir)?;
-            data_dir.join("listens.db")
+            data_dir.join("listens.duckdb")
         };
 
-        let db = Builder::new_local(db_path.to_string_lossy().to_string())
-            .build()
-            .await?;
+        // Open DuckDB connection (synchronous, so we use spawn_blocking)
+        let db_path_str = db_path.to_string_lossy().to_string();
+        let conn = tokio::task::spawn_blocking(move || Connection::open(&db_path_str))
+            .await
+            .map_err(|e| crate::error::Error::other(e.to_string()))??;
 
         let instance = Self {
-            db: Arc::new(db),
-            conn: Arc::new(RwLock::new(None)),
+            conn: Arc::new(Mutex::new(conn)),
         };
 
         // Initialize schema
@@ -62,49 +63,22 @@ impl Database {
 
     /// Initialize database schema
     async fn init(&self) -> Result<()> {
-        let conn = self.connection().await?;
-        schema::init_schema(&conn).await?;
+        let conn = self.conn.lock().await;
+        // Run schema initialization synchronously
+        schema::init_schema(&conn)?;
         Ok(())
-    }
-
-    /// Get a database connection.
-    ///
-    /// Uses double-check locking pattern to avoid holding write lock across
-    /// potentially blocking operations.
-    async fn connection(&self) -> Result<Connection> {
-        // Fast path: check with read lock first
-        {
-            let guard = self.conn.read().await;
-            if let Some(ref conn) = *guard {
-                return Ok(conn.clone());
-            }
-        }
-        // Read lock released before connect
-
-        // Create connection outside of lock
-        let new_conn = self.db.connect()?;
-
-        // Slow path: acquire write lock and double-check
-        let mut guard = self.conn.write().await;
-        if let Some(ref conn) = *guard {
-            // Another task connected while we were waiting
-            return Ok(conn.clone());
-        }
-
-        *guard = Some(new_conn.clone());
-        Ok(new_conn)
     }
 
     /// Log a completed play to the database
     pub async fn log_play(&self, state: &TrackState, context: &ListeningContext) -> Result<()> {
-        let conn = self.connection().await?;
-        queries::insert_play(&conn, state, context).await
+        let conn = self.conn.lock().await;
+        queries::insert_play(&conn, state, context)
     }
 
     /// Get total play count
     pub async fn get_play_count(&self) -> Result<i64> {
-        let conn = self.connection().await?;
-        queries::get_play_count(&conn).await
+        let conn = self.conn.lock().await;
+        queries::get_play_count(&conn)
     }
 
     /// Get top artists by play count
@@ -114,8 +88,11 @@ impl Database {
         end_date: Option<&str>,
         limit: u32,
     ) -> Result<Vec<ArtistStats>> {
-        let conn = self.connection().await?;
-        queries::get_top_artists(&conn, start_date, end_date, limit).await
+        // Clone the date strings to avoid lifetime issues
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        queries::get_top_artists(&conn, start.as_deref(), end.as_deref(), limit)
     }
 
     /// Get top albums by play count
@@ -125,8 +102,10 @@ impl Database {
         end_date: Option<&str>,
         limit: u32,
     ) -> Result<Vec<AlbumStats>> {
-        let conn = self.connection().await?;
-        queries::get_top_albums(&conn, start_date, end_date, limit).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        queries::get_top_albums(&conn, start.as_deref(), end.as_deref(), limit)
     }
 
     /// Get top tracks by play count
@@ -136,8 +115,10 @@ impl Database {
         end_date: Option<&str>,
         limit: u32,
     ) -> Result<Vec<TrackStats>> {
-        let conn = self.connection().await?;
-        queries::get_top_tracks(&conn, start_date, end_date, limit).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        queries::get_top_tracks(&conn, start.as_deref(), end.as_deref(), limit)
     }
 
     /// Get listening stats overview
@@ -146,12 +127,14 @@ impl Database {
         start_date: Option<&str>,
         end_date: Option<&str>,
     ) -> Result<OverviewStats> {
-        let conn = self.connection().await?;
-        queries::get_overview_stats(&conn, start_date, end_date).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        queries::get_overview_stats(&conn, start.as_deref(), end.as_deref())
     }
 
-    // The following methods are implemented but not yet exposed in the CLI.
-    // They will be integrated in future releases.
+    // The following methods are public API for binaries (GUI, music-stats)
+    // but not used within the library itself.
 
     /// Get listening streaks (current and longest)
     #[allow(dead_code)]
@@ -160,8 +143,10 @@ impl Database {
         start_date: Option<&str>,
         end_date: Option<&str>,
     ) -> Result<crate::analytics::StreakInfo> {
-        let conn = self.connection().await?;
-        crate::analytics::get_listening_streaks(&conn, start_date, end_date).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        crate::analytics::get_listening_streaks(&conn, start.as_deref(), end.as_deref())
     }
 
     /// Get night owl score (percentage of plays between midnight and 6am)
@@ -171,8 +156,10 @@ impl Database {
         start_date: Option<&str>,
         end_date: Option<&str>,
     ) -> Result<crate::analytics::NightOwlScore> {
-        let conn = self.connection().await?;
-        crate::analytics::get_night_owl_score(&conn, start_date, end_date).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        crate::analytics::get_night_owl_score(&conn, start.as_deref(), end.as_deref())
     }
 
     /// Get hourly listening heatmap
@@ -182,8 +169,10 @@ impl Database {
         start_date: Option<&str>,
         end_date: Option<&str>,
     ) -> Result<crate::analytics::HourlyHeatmap> {
-        let conn = self.connection().await?;
-        crate::analytics::get_hourly_heatmap(&conn, start_date, end_date).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        crate::analytics::get_hourly_heatmap(&conn, start.as_deref(), end.as_deref())
     }
 
     /// Get genre statistics
@@ -194,8 +183,10 @@ impl Database {
         end_date: Option<&str>,
         limit: u32,
     ) -> Result<Vec<(String, i64, i64)>> {
-        let conn = self.connection().await?;
-        crate::analytics::get_genre_stats(&conn, start_date, end_date, limit).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        crate::analytics::get_genre_stats(&conn, start.as_deref(), end.as_deref(), limit)
     }
 
     /// Get skip rate (percentage of plays with less than 50% completion)
@@ -205,8 +196,10 @@ impl Database {
         start_date: Option<&str>,
         end_date: Option<&str>,
     ) -> Result<(i64, i64, f64)> {
-        let conn = self.connection().await?;
-        crate::analytics::get_skip_rate(&conn, start_date, end_date).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        crate::analytics::get_skip_rate(&conn, start.as_deref(), end.as_deref())
     }
 
     /// Get daily contribution data for the contribution graph
@@ -216,8 +209,10 @@ impl Database {
         start_date: Option<&str>,
         end_date: Option<&str>,
     ) -> Result<crate::analytics::DailyContribution> {
-        let conn = self.connection().await?;
-        crate::analytics::get_daily_contributions(&conn, start_date, end_date).await
+        let start = start_date.map(String::from);
+        let end = end_date.map(String::from);
+        let conn = self.conn.lock().await;
+        crate::analytics::get_daily_contributions(&conn, start.as_deref(), end.as_deref())
     }
 }
 
@@ -242,9 +237,9 @@ pub struct AlbumStats {
     /// Number of plays.
     pub play_count: i64,
     /// Total listening time in milliseconds.
-    #[allow(dead_code)]
     pub total_ms: i64,
-    /// Album art URL, if available.
+    /// Album art URL, if available. Used by GUI for displaying artwork.
+    #[allow(dead_code)]
     pub art_url: Option<String>,
 }
 
@@ -258,9 +253,9 @@ pub struct TrackStats {
     /// Number of plays.
     pub play_count: i64,
     /// Total listening time in milliseconds.
-    #[allow(dead_code)]
     pub total_ms: i64,
-    /// Album art URL, if available.
+    /// Album art URL, if available. Used by GUI for displaying artwork.
+    #[allow(dead_code)]
     pub art_url: Option<String>,
 }
 

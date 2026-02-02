@@ -1,140 +1,114 @@
-//! Database schema initialization
+//! Database schema initialization for DuckDB
 
-use libsql::Connection;
+use duckdb::Connection;
 
 use crate::error::Result;
 
 /// Initialize the database schema
-pub async fn init_schema(conn: &Connection) -> Result<()> {
+pub fn init_schema(conn: &Connection) -> Result<()> {
     // Create main plays table
-    conn.execute(
+    // DuckDB uses sequences for auto-increment
+    conn.execute_batch(
         r"
+        CREATE SEQUENCE IF NOT EXISTS plays_id_seq;
+
         CREATE TABLE IF NOT EXISTS plays (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            title TEXT NOT NULL,
-            artist TEXT,
-            album TEXT,
-            duration_ms INTEGER,
-            played_ms INTEGER,
-            file_path TEXT,
+            id INTEGER PRIMARY KEY DEFAULT nextval('plays_id_seq'),
+            timestamp TIMESTAMP DEFAULT current_timestamp,
+            title VARCHAR NOT NULL,
+            artist VARCHAR,
+            album VARCHAR,
+            duration_ms BIGINT,
+            played_ms BIGINT,
+            file_path VARCHAR,
 
             -- Extended metadata
-            genre TEXT,
-            album_artist TEXT,
+            genre VARCHAR,
+            album_artist VARCHAR,
             track_number INTEGER,
             disc_number INTEGER,
-            release_date TEXT,
-            art_url TEXT,
-            user_rating REAL,
+            release_date VARCHAR,
+            art_url VARCHAR,
+            user_rating DOUBLE,
             bpm INTEGER,
-            composer TEXT,
-            musicbrainz_track_id TEXT,
+            composer VARCHAR,
+            musicbrainz_track_id VARCHAR,
 
             -- Seek tracking
             seek_count INTEGER,
             intro_skipped INTEGER,
-            seek_forward_ms INTEGER,
-            seek_backward_ms INTEGER,
+            seek_forward_ms BIGINT,
+            seek_backward_ms BIGINT,
 
             -- Volume tracking
-            app_volume REAL,
-            system_volume REAL,
-            effective_volume REAL,
+            app_volume DOUBLE,
+            system_volume DOUBLE,
+            effective_volume DOUBLE,
 
             -- Context tracking
             hour_of_day INTEGER,
             day_of_week INTEGER,
             is_weekend INTEGER,
-            season TEXT,
-            active_window TEXT,
+            season VARCHAR,
+            active_window VARCHAR,
             screen_on INTEGER,
             on_battery INTEGER,
 
             -- Player info
-            player_name TEXT,
+            player_name VARCHAR,
             is_local INTEGER
-        )
+        );
         ",
-        (),
-    )
-    .await?;
+    )?;
 
     // Create indexes for common queries
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_plays_timestamp ON plays(timestamp)",
-        (),
-    )
-    .await?;
-
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_plays_artist ON plays(artist)",
-        (),
-    )
-    .await?;
-
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_plays_album ON plays(album)",
-        (),
-    )
-    .await?;
-
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_plays_genre ON plays(genre)",
-        (),
-    )
-    .await?;
-
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_plays_title ON plays(title)",
-        (),
-    )
-    .await?;
+    // DuckDB handles IF NOT EXISTS for indexes
+    conn.execute_batch(
+        r"
+        CREATE INDEX IF NOT EXISTS idx_plays_timestamp ON plays(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_plays_artist ON plays(artist);
+        CREATE INDEX IF NOT EXISTS idx_plays_album ON plays(album);
+        CREATE INDEX IF NOT EXISTS idx_plays_genre ON plays(genre);
+        CREATE INDEX IF NOT EXISTS idx_plays_title ON plays(title);
+        ",
+    )?;
 
     // Create audio features table for future audio analysis
-    conn.execute(
+    conn.execute_batch(
         r"
         CREATE TABLE IF NOT EXISTS audio_features (
-            file_path TEXT PRIMARY KEY,
-            tempo REAL,
-            energy REAL,
-            danceability REAL,
-            valence REAL,
-            acousticness REAL,
-            instrumentalness REAL,
-            speechiness REAL,
-            loudness REAL,
+            file_path VARCHAR PRIMARY KEY,
+            tempo DOUBLE,
+            energy DOUBLE,
+            danceability DOUBLE,
+            valence DOUBLE,
+            acousticness DOUBLE,
+            instrumentalness DOUBLE,
+            speechiness DOUBLE,
+            loudness DOUBLE,
             key INTEGER,
             mode INTEGER,
             time_signature INTEGER,
-            analyzed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
+            analyzed_at TIMESTAMP DEFAULT current_timestamp
+        );
         ",
-        (),
-    )
-    .await?;
+    )?;
 
     // Create sessions table for session tracking
-    conn.execute(
+    conn.execute_batch(
         r"
         CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            start_time DATETIME NOT NULL,
-            end_time DATETIME,
+            id VARCHAR PRIMARY KEY,
+            start_time TIMESTAMP NOT NULL,
+            end_time TIMESTAMP,
             track_count INTEGER DEFAULT 0,
-            total_ms INTEGER DEFAULT 0,
-            player_name TEXT
-        )
-        ",
-        (),
-    )
-    .await?;
+            total_ms BIGINT DEFAULT 0,
+            player_name VARCHAR
+        );
 
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_time)",
-        (),
-    )
-    .await?;
+        CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_time);
+        ",
+    )?;
 
     Ok(())
 }
