@@ -22,6 +22,7 @@
 pub(crate) mod analytics;
 pub mod config;
 pub(crate) mod context;
+pub mod date_range;
 pub mod db;
 pub mod display;
 pub mod error;
@@ -29,10 +30,12 @@ pub mod error;
 pub mod gui;
 pub mod mpris;
 pub(crate) mod track;
+pub mod types;
 
 pub use config::Config;
 pub use db::Database;
 pub use error::{Error, Result};
+pub use types::{Microseconds, Milliseconds, PlayCount};
 
 /// Application version from Cargo.toml
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

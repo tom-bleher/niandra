@@ -8,11 +8,13 @@ use tracing_subscriber::EnvFilter;
 mod analytics;
 mod config;
 mod context;
+mod date_range;
 mod db;
 mod display;
 mod error;
 mod mpris;
 mod track;
+mod types;
 
 use config::Config;
 use db::Database;

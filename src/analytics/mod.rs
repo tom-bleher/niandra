@@ -1,14 +1,15 @@
-//! Analytics and statistics module
+//! Analytics and statistics module for DuckDB
 //!
 //! Provides various analytics functions for listening data.
 //!
-//! Note: These functions are implemented but not yet exposed in the CLI.
-//! They will be integrated in future releases.
+//! These functions are used by the GUI and `music-stats` CLI binary
+//! through the `Database` wrapper methods.
 
+// These types and functions are public API for binaries, not dead code
 #![allow(dead_code)]
 
 use chrono::NaiveDate;
-use libsql::Connection;
+use duckdb::Connection;
 use std::collections::HashMap;
 
 use crate::db::DateFilter;
@@ -49,26 +50,30 @@ pub struct HourlyHeatmap {
 }
 
 /// Get listening streaks
-pub async fn get_listening_streaks(
+pub fn get_listening_streaks(
     conn: &Connection,
     start_date: Option<&str>,
     end_date: Option<&str>,
 ) -> Result<StreakInfo> {
+    // DuckDB uses CAST to DATE or strftime for date extraction
     let mut query =
-        "SELECT DISTINCT DATE(timestamp) as play_date FROM plays WHERE 1=1".to_string();
+        "SELECT DISTINCT CAST(timestamp AS DATE) as play_date FROM plays WHERE 1=1".to_string();
     let mut params = Vec::new();
 
     DateFilter::new(start_date, end_date).apply(&mut query, &mut params);
 
     query.push_str(" ORDER BY play_date ASC");
 
-    let mut rows = conn
-        .query(&query, DateFilter::to_values(&params))
-        .await?;
-    let mut dates: Vec<NaiveDate> = Vec::new();
-
-    while let Some(row) = rows.next().await? {
+    let param_refs = DateFilter::params_as_refs(&params);
+    let mut stmt = conn.prepare(&query)?;
+    let rows = stmt.query_map(param_refs.as_slice(), |row| {
         let date_str: String = row.get(0)?;
+        Ok(date_str)
+    })?;
+
+    let mut dates: Vec<NaiveDate> = Vec::new();
+    for row in rows {
+        let date_str = row?;
         if let Ok(date) = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d") {
             dates.push(date);
         }
@@ -128,7 +133,7 @@ pub async fn get_listening_streaks(
 }
 
 /// Get night owl score (percentage of plays between 10 PM and 4 AM)
-pub async fn get_night_owl_score(
+pub fn get_night_owl_score(
     conn: &Connection,
     start_date: Option<&str>,
     end_date: Option<&str>,
@@ -138,15 +143,11 @@ pub async fn get_night_owl_score(
 
     DateFilter::new(start_date, end_date).apply(&mut base_query, &mut params);
 
-    let param_values = DateFilter::to_values(&params);
+    let param_refs = DateFilter::params_as_refs(&params);
 
     // Total plays
-    let mut rows = conn.query(&base_query, param_values.clone()).await?;
-    let total_plays: i64 = if let Some(row) = rows.next().await? {
-        row.get(0)?
-    } else {
-        0
-    };
+    let mut stmt = conn.prepare(&base_query)?;
+    let total_plays: i64 = stmt.query_row(param_refs.as_slice(), |row| row.get(0))?;
 
     if total_plays == 0 {
         return Ok(NightOwlScore::default());
@@ -156,12 +157,8 @@ pub async fn get_night_owl_score(
     let night_query = format!(
         "{base_query} AND hour_of_day IS NOT NULL AND (hour_of_day >= 22 OR hour_of_day < 4)"
     );
-    let mut rows = conn.query(&night_query, param_values).await?;
-    let night_plays: i64 = if let Some(row) = rows.next().await? {
-        row.get(0)?
-    } else {
-        0
-    };
+    let mut stmt = conn.prepare(&night_query)?;
+    let night_plays: i64 = stmt.query_row(param_refs.as_slice(), |row| row.get(0))?;
 
     let percentage = (night_plays as f64 / total_plays as f64) * 100.0;
 
@@ -173,7 +170,7 @@ pub async fn get_night_owl_score(
 }
 
 /// Get hourly heatmap
-pub async fn get_hourly_heatmap(
+pub fn get_hourly_heatmap(
     conn: &Connection,
     start_date: Option<&str>,
     end_date: Option<&str>,
@@ -186,17 +183,20 @@ pub async fn get_hourly_heatmap(
 
     query.push_str(" GROUP BY hour_of_day ORDER BY hour_of_day");
 
-    let mut rows = conn
-        .query(&query, DateFilter::to_values(&params))
-        .await?;
+    let param_refs = DateFilter::params_as_refs(&params);
+    let mut stmt = conn.prepare(&query)?;
+    let rows = stmt.query_map(param_refs.as_slice(), |row| {
+        let hour: i32 = row.get(0)?;
+        let count: i64 = row.get(1)?;
+        Ok((hour, count))
+    })?;
+
     let mut hours: HashMap<i32, i64> = HashMap::new();
     let mut peak_hour = 0;
     let mut peak_count: i64 = 0;
 
-    while let Some(row) = rows.next().await? {
-        let hour: i32 = row.get(0)?;
-        let count: i64 = row.get(1)?;
-
+    for row in rows {
+        let (hour, count) = row?;
         hours.insert(hour, count);
 
         if count > peak_count {
@@ -213,7 +213,7 @@ pub async fn get_hourly_heatmap(
 }
 
 /// Get genre statistics
-pub async fn get_genre_stats(
+pub fn get_genre_stats(
     conn: &Connection,
     start_date: Option<&str>,
     end_date: Option<&str>,
@@ -234,23 +234,25 @@ pub async fn get_genre_stats(
         limit
     ));
 
-    let mut rows = conn
-        .query(&query, DateFilter::to_values(&params))
-        .await?;
-    let mut stats = Vec::new();
-
-    while let Some(row) = rows.next().await? {
+    let param_refs = DateFilter::params_as_refs(&params);
+    let mut stmt = conn.prepare(&query)?;
+    let rows = stmt.query_map(param_refs.as_slice(), |row| {
         let genre: String = row.get(0)?;
         let count: i64 = row.get(1)?;
-        let total_ms: i64 = row.get::<Option<i64>>(2)?.unwrap_or(0);
-        stats.push((genre, count, total_ms));
+        let total_ms: Option<i64> = row.get(2)?;
+        Ok((genre, count, total_ms.unwrap_or(0)))
+    })?;
+
+    let mut stats = Vec::new();
+    for row in rows {
+        stats.push(row?);
     }
 
     Ok(stats)
 }
 
 /// Get skip rate (plays < 50% completion)
-pub async fn get_skip_rate(
+pub fn get_skip_rate(
     conn: &Connection,
     start_date: Option<&str>,
     end_date: Option<&str>,
@@ -260,16 +262,12 @@ pub async fn get_skip_rate(
 
     DateFilter::new(start_date, end_date).apply(&mut base_where, &mut params);
 
-    let param_values = DateFilter::to_values(&params);
+    let param_refs = DateFilter::params_as_refs(&params);
 
     // Total plays with duration
     let total_query = format!("SELECT COUNT(*) FROM plays {base_where}");
-    let mut rows = conn.query(&total_query, param_values.clone()).await?;
-    let total: i64 = if let Some(row) = rows.next().await? {
-        row.get(0)?
-    } else {
-        0
-    };
+    let mut stmt = conn.prepare(&total_query)?;
+    let total: i64 = stmt.query_row(param_refs.as_slice(), |row| row.get(0))?;
 
     if total == 0 {
         return Ok((0, 0, 0.0));
@@ -278,12 +276,8 @@ pub async fn get_skip_rate(
     // Skipped plays (< 50% completion)
     let skip_query =
         format!("SELECT COUNT(*) FROM plays {base_where} AND (played_ms * 1.0 / duration_ms) < 0.5");
-    let mut rows = conn.query(&skip_query, param_values).await?;
-    let skipped: i64 = if let Some(row) = rows.next().await? {
-        row.get(0)?
-    } else {
-        0
-    };
+    let mut stmt = conn.prepare(&skip_query)?;
+    let skipped: i64 = stmt.query_row(param_refs.as_slice(), |row| row.get(0))?;
 
     let rate = (skipped as f64 / total as f64) * 100.0;
 
@@ -302,31 +296,35 @@ pub struct DailyContribution {
 }
 
 /// Get daily play counts for the contribution graph
-pub async fn get_daily_contributions(
+pub fn get_daily_contributions(
     conn: &Connection,
     start_date: Option<&str>,
     end_date: Option<&str>,
 ) -> Result<DailyContribution> {
+    // DuckDB uses CAST or strftime for date extraction
     let mut query =
-        "SELECT DATE(datetime(timestamp, 'localtime')) as play_date, COUNT(*) as count FROM plays WHERE 1=1".to_string();
+        "SELECT CAST(timestamp AS DATE) as play_date, COUNT(*) as count FROM plays WHERE 1=1"
+            .to_string();
     let mut params = Vec::new();
 
     DateFilter::new(start_date, end_date).apply(&mut query, &mut params);
 
     query.push_str(" GROUP BY play_date ORDER BY play_date");
 
-    let mut rows = conn
-        .query(&query, DateFilter::to_values(&params))
-        .await?;
+    let param_refs = DateFilter::params_as_refs(&params);
+    let mut stmt = conn.prepare(&query)?;
+    let rows = stmt.query_map(param_refs.as_slice(), |row| {
+        let date: String = row.get(0)?;
+        let count: i64 = row.get(1)?;
+        Ok((date, count))
+    })?;
 
     let mut days = std::collections::HashMap::new();
     let mut max_plays: i64 = 0;
     let mut total_plays: i64 = 0;
 
-    while let Some(row) = rows.next().await? {
-        let date: String = row.get(0)?;
-        let count: i64 = row.get(1)?;
-
+    for row in rows {
+        let (date, count) = row?;
         days.insert(date, count);
         max_plays = max_plays.max(count);
         total_plays += count;
