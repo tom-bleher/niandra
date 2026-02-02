@@ -265,7 +265,7 @@ pub fn get_top_albums(
             ) as artist,
             COUNT(*) as play_count,
             SUM(played_ms) as total_ms,
-            FIRST(art_url) as art_url
+            MAX(art_url) as art_url
         FROM plays
         WHERE album IS NOT NULL
     "
@@ -314,7 +314,7 @@ pub fn get_top_tracks(
             FIRST({PRIMARY_ARTIST_SQL}) as normalized_artist,
             COUNT(*) as play_count,
             SUM(played_ms) as total_ms,
-            FIRST(art_url) as art_url
+            MAX(art_url) as art_url
         FROM plays
         WHERE title IS NOT NULL
     "
