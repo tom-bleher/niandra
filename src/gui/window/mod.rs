@@ -8,6 +8,9 @@ use libadwaita as adw;
 
 use crate::gui::MusicAnalyticsApplication;
 
+// Re-export DateFilter from the shared date_range module
+pub use crate::date_range::DateFilter;
+
 /// Data for the insights view
 #[derive(Debug, Clone)]
 pub struct InsightsData {
@@ -49,69 +52,5 @@ impl MusicAnalyticsWindow {
     /// Get the currently selected date filter
     pub fn date_filter(&self) -> DateFilter {
         self.imp().date_filter()
-    }
-}
-
-/// Date filter options for statistics queries
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DateFilter {
-    Today,
-    Week,
-    Month,
-    Year,
-    #[default]
-    AllTime,
-}
-
-impl DateFilter {
-    /// Convert to start/end date strings for database queries
-    #[must_use]
-    pub fn to_date_range(self) -> (Option<String>, Option<String>) {
-        use chrono::{Days, Local, Months};
-
-        let today = Local::now().date_naive();
-        let start_of_today = today.format("%Y-%m-%d").to_string();
-        let end = format!("{} 23:59:59", start_of_today);
-
-        match self {
-            Self::Today => (Some(start_of_today), Some(end)),
-            Self::Week => {
-                let start = today
-                    .checked_sub_days(Days::new(7))
-                    .map(|d| d.format("%Y-%m-%d").to_string());
-                (start, Some(end))
-            }
-            Self::Month => {
-                let start = today
-                    .checked_sub_months(Months::new(1))
-                    .map(|d| d.format("%Y-%m-%d").to_string());
-                (start, Some(end))
-            }
-            Self::Year => {
-                let start = today
-                    .checked_sub_months(Months::new(12))
-                    .map(|d| d.format("%Y-%m-%d").to_string());
-                (start, Some(end))
-            }
-            Self::AllTime => (None, None),
-        }
-    }
-
-    /// Get display name for the filter
-    #[must_use]
-    pub const fn display_name(self) -> &'static str {
-        match self {
-            Self::Today => "Today",
-            Self::Week => "Past Week",
-            Self::Month => "Past Month",
-            Self::Year => "Past Year",
-            Self::AllTime => "All Time",
-        }
-    }
-
-    /// Get all filter options
-    #[must_use]
-    pub const fn all() -> &'static [Self] {
-        &[Self::Today, Self::Week, Self::Month, Self::Year, Self::AllTime]
     }
 }

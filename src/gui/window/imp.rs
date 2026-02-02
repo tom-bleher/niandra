@@ -306,7 +306,8 @@ impl MusicAnalyticsWindow {
     pub fn reload_data(&self) {
         let sender = self.sender.clone();
         let filter = self.date_filter.get();
-        let (start_date, end_date) = filter.to_date_range();
+        let range = filter.to_date_range();
+        let (start_date, end_date) = range.to_sql_tuple_with_end_time();
 
         // Show loading state on views
         if let Some(view) = self.overview_view.borrow().as_ref() {
