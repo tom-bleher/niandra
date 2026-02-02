@@ -6,6 +6,7 @@ use gtk4::subclass::prelude::*;
 use std::cell::{Cell, RefCell};
 
 use super::art_loader;
+use crate::gui::models::StatsObject;
 
 mod imp {
     use super::*;

@@ -64,7 +64,7 @@ mod imp {
             let data = self.data.borrow();
 
             let width = width as f64;
-            let height = height as f64;
+            let _height = height as f64;
 
             // Layout constants
             let cell_size = 11.0;
