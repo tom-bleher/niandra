@@ -12,13 +12,64 @@
 //! - [`print_section`] / [`print_section_simple`] - Print section headers
 //! - [`display_overview`] / [`display_top_artists`] / etc. - Display formatted stats
 
-use chrono::{Datelike, Local};
+// These functions are public API for CLI binaries
+#![allow(dead_code)]
 
+use std::borrow::Cow;
+
+use crate::date_range;
 use crate::db::{AlbumStats, ArtistStats, OverviewStats, TrackStats};
+
+/// Trait for types that can be displayed in a ranked list.
+///
+/// This trait abstracts over the common display pattern for artists, albums, and tracks,
+/// allowing a single generic display function to handle all three types.
+///
+/// Implementors provide data access methods, and the generic display function
+/// handles all formatting logic consistently.
+pub trait DisplayableItem {
+    /// Returns the primary display name for this item.
+    ///
+    /// For artists, this is the artist name.
+    /// For albums, this is the album title.
+    /// For tracks, this is the track title.
+    fn display_name(&self) -> &str;
+
+    /// Returns an optional secondary display name (e.g., artist for albums/tracks).
+    fn secondary_name(&self) -> Option<&str> {
+        None
+    }
+
+    /// Returns the separator to use between primary and secondary names.
+    ///
+    /// Default is " - " for tracks, override to " by " for albums.
+    fn name_separator(&self) -> &str {
+        " - "
+    }
+
+    /// Returns the play count for this item.
+    fn play_count(&self) -> i64;
+
+    /// Returns the total listening time in milliseconds.
+    fn total_ms(&self) -> i64;
+
+    /// Returns the last played timestamp, if available.
+    fn last_played(&self) -> Option<&str> {
+        None
+    }
+
+    /// Returns the width to use for the primary name column.
+    fn name_width(&self) -> usize {
+        30
+    }
+}
 
 /// Build date range from CLI flags.
 ///
 /// Returns `(start_date, end_date, period_name)` tuple for filtering and display.
+///
+/// This is a convenience wrapper around [`date_range::from_cli_flags`] that returns
+/// the tuple format expected by existing CLI code.
 #[must_use]
 pub fn build_date_range(
     all_time: bool,
@@ -26,35 +77,16 @@ pub fn build_date_range(
     month: bool,
     year: Option<i32>,
 ) -> (Option<String>, Option<String>, String) {
-    let now = Local::now();
-
-    if all_time {
-        (None, None, "All Time".to_string())
-    } else if week {
-        let start = (now - chrono::Duration::days(7))
-            .format("%Y-%m-%d")
-            .to_string();
-        (Some(start), None, "Last 7 Days".to_string())
-    } else if month {
-        let start = now
-            .with_day(1)
-            .expect("day 1 is always valid")
-            .format("%Y-%m-%d")
-            .to_string();
-        (Some(start), None, now.format("%B %Y").to_string())
-    } else if let Some(y) = year {
-        let start = format!("{y}-01-01");
-        let end = format!("{y}-12-31");
-        (Some(start), Some(end), y.to_string())
-    } else {
-        // Default: current year
-        let current_year = now.year();
-        let start = format!("{current_year}-01-01");
-        (Some(start), None, current_year.to_string())
-    }
+    let range = date_range::from_cli_flags(all_time, week, month, year);
+    let (start, end) = range.to_sql_tuple();
+    (start, end, range.display_name)
 }
 
 /// Truncate a string to a maximum length, adding "..." if truncated.
+///
+/// Returns a `Cow<str>` to avoid allocation when the string already fits
+/// within the specified length. Only allocates a new `String` when truncation
+/// is actually needed.
 ///
 /// Handles Unicode characters correctly by counting graphemes rather than bytes.
 /// For `max_len < 3`, truncates without ellipsis since there's no room for "...".
@@ -68,16 +100,16 @@ pub fn build_date_range(
 /// assert_eq!(truncate("hello world", 8), "hello...");
 /// assert_eq!(truncate("hello", 2), "he");
 /// ```
-pub fn truncate(s: &str, max_len: usize) -> String {
+pub fn truncate(s: &str, max_len: usize) -> Cow<'_, str> {
     let char_count = s.chars().count();
     if char_count <= max_len {
-        s.to_string()
+        Cow::Borrowed(s)
     } else if max_len < 3 {
         // No room for ellipsis, just truncate
-        s.chars().take(max_len).collect()
+        Cow::Owned(s.chars().take(max_len).collect())
     } else {
         let truncated: String = s.chars().take(max_len - 3).collect();
-        format!("{truncated}...")
+        Cow::Owned(format!("{truncated}..."))
     }
 }
 
@@ -106,7 +138,6 @@ pub fn format_hours(ms: i64) -> f64 {
 }
 
 /// Print a section header with equals signs.
-#[allow(dead_code)]
 pub fn print_section(title: &str) {
     println!("\n{}", "=".repeat(50));
     println!("  {}", title);
@@ -129,88 +160,192 @@ pub fn display_overview(overview: &OverviewStats) {
     println!("  Unique tracks:    {:>10}", overview.unique_tracks);
 }
 
-/// Display top artists list.
-pub fn display_top_artists(artists: &[ArtistStats], show_bar: bool) {
-    let max_plays = artists.first().map(|a| a.play_count).unwrap_or(1);
+// ============================================================================
+// DisplayableItem trait implementations
+// ============================================================================
 
-    for (i, artist) in artists.iter().enumerate() {
-        let hours = format_hours(artist.total_ms);
-        if show_bar {
-            let bar = make_bar(artist.play_count, max_plays, 20);
-            println!(
-                "  {:2}. {:<30} {} {:>4} plays ({:.1}h)",
-                i + 1,
-                truncate(&artist.artist, 30),
-                bar,
-                artist.play_count,
-                hours
-            );
+impl DisplayableItem for ArtistStats {
+    fn display_name(&self) -> &str {
+        &self.artist
+    }
+
+    fn play_count(&self) -> i64 {
+        self.play_count
+    }
+
+    fn total_ms(&self) -> i64 {
+        self.total_ms
+    }
+
+    fn name_width(&self) -> usize {
+        30
+    }
+}
+
+impl DisplayableItem for AlbumStats {
+    fn display_name(&self) -> &str {
+        &self.album
+    }
+
+    fn secondary_name(&self) -> Option<&str> {
+        self.artist.as_deref()
+    }
+
+    fn name_separator(&self) -> &str {
+        " by "
+    }
+
+    fn play_count(&self) -> i64 {
+        self.play_count
+    }
+
+    fn total_ms(&self) -> i64 {
+        self.total_ms
+    }
+
+    fn name_width(&self) -> usize {
+        25
+    }
+}
+
+impl DisplayableItem for TrackStats {
+    fn display_name(&self) -> &str {
+        &self.title
+    }
+
+    fn secondary_name(&self) -> Option<&str> {
+        self.artist.as_deref()
+    }
+
+    fn name_separator(&self) -> &str {
+        " - "
+    }
+
+    fn play_count(&self) -> i64 {
+        self.play_count
+    }
+
+    fn total_ms(&self) -> i64 {
+        self.total_ms
+    }
+
+    fn name_width(&self) -> usize {
+        25
+    }
+}
+
+// ============================================================================
+// Generic display function
+// ============================================================================
+
+/// Display a ranked list of items implementing [`DisplayableItem`].
+///
+/// This generic function handles the common display logic for artists, albums, and tracks:
+/// 1. Prints a header with count and time period
+/// 2. Iterates through items
+/// 3. Formats each item with rank, name, play count, hours
+/// 4. Handles the "last played" display when available
+///
+/// # Arguments
+/// * `items` - Slice of items to display
+/// * `show_bar` - Whether to show visual bar charts
+/// * `bar_width` - Width of the bar chart (only used if `show_bar` is true)
+pub fn display_top_items<T: DisplayableItem>(items: &[T], show_bar: bool, bar_width: usize) {
+    let max_plays = items.first().map(|item| item.play_count()).unwrap_or(1);
+
+    for (i, item) in items.iter().enumerate() {
+        let index = i + 1;
+        let name_width = item.name_width();
+        let name = truncate(item.display_name(), name_width);
+        let hours = format_hours(item.total_ms());
+
+        let line = if let Some(secondary) = item.secondary_name() {
+            // Format with secondary name (albums/tracks)
+            let secondary_truncated = truncate(secondary, 15);
+            if show_bar {
+                let bar = make_bar(item.play_count(), max_plays, bar_width);
+                format!(
+                    "  {:2}. {:<width$}{}{:<15} {} {:>3}",
+                    index,
+                    name,
+                    item.name_separator(),
+                    secondary_truncated,
+                    bar,
+                    item.play_count(),
+                    width = name_width
+                )
+            } else {
+                format!(
+                    "  {:2}. {:<width$}{}{:<15} {:>3} plays ({:.1}h)",
+                    index,
+                    name,
+                    item.name_separator(),
+                    secondary_truncated,
+                    item.play_count(),
+                    hours,
+                    width = name_width
+                )
+            }
         } else {
-            println!(
-                "  {:2}. {:<30} {:>4} plays ({:.1}h)",
-                i + 1,
-                truncate(&artist.artist, 30),
-                artist.play_count,
-                hours
-            );
+            // Format without secondary name (artists)
+            if show_bar {
+                let bar = make_bar(item.play_count(), max_plays, bar_width);
+                format!(
+                    "  {:2}. {:<width$} {} {:>4} plays ({:.1}h)",
+                    index,
+                    name,
+                    bar,
+                    item.play_count(),
+                    hours,
+                    width = name_width
+                )
+            } else {
+                format!(
+                    "  {:2}. {:<width$} {:>4} plays ({:.1}h)",
+                    index,
+                    name,
+                    item.play_count(),
+                    hours,
+                    width = name_width
+                )
+            }
+        };
+
+        // Handle last played display if available
+        if let Some(last_played) = item.last_played() {
+            println!("{line}  (last: {last_played})");
+        } else {
+            println!("{line}");
         }
     }
+}
+
+// ============================================================================
+// Convenience wrapper functions (for backward compatibility)
+// ============================================================================
+
+/// Display top artists list.
+///
+/// This is a convenience wrapper around [`display_top_items`] with the
+/// appropriate bar width for artist display.
+pub fn display_top_artists(artists: &[ArtistStats], show_bar: bool) {
+    display_top_items(artists, show_bar, 20);
 }
 
 /// Display top albums list.
+///
+/// This is a convenience wrapper around [`display_top_items`] with the
+/// appropriate bar width for album display.
 pub fn display_top_albums(albums: &[AlbumStats], show_bar: bool) {
-    let max_plays = albums.first().map(|a| a.play_count).unwrap_or(1);
-
-    for (i, album) in albums.iter().enumerate() {
-        let artist = album.artist.as_deref().unwrap_or("Unknown");
-        if show_bar {
-            let bar = make_bar(album.play_count, max_plays, 15);
-            println!(
-                "  {:2}. {:<25} by {:<15} {} {:>3}",
-                i + 1,
-                truncate(&album.album, 25),
-                truncate(artist, 15),
-                bar,
-                album.play_count
-            );
-        } else {
-            println!(
-                "  {:2}. {:<25} by {:<15} {:>3} plays",
-                i + 1,
-                truncate(&album.album, 25),
-                truncate(artist, 15),
-                album.play_count
-            );
-        }
-    }
+    display_top_items(albums, show_bar, 15);
 }
 
 /// Display top tracks list.
+///
+/// This is a convenience wrapper around [`display_top_items`] with the
+/// appropriate bar width for track display.
 pub fn display_top_tracks(tracks: &[TrackStats], show_bar: bool) {
-    let max_plays = tracks.first().map(|t| t.play_count).unwrap_or(1);
-
-    for (i, track) in tracks.iter().enumerate() {
-        let artist = track.artist.as_deref().unwrap_or("Unknown");
-        if show_bar {
-            let bar = make_bar(track.play_count, max_plays, 15);
-            println!(
-                "  {:2}. {:<25} - {:<15} {} {:>3}",
-                i + 1,
-                truncate(&track.title, 25),
-                truncate(artist, 15),
-                bar,
-                track.play_count
-            );
-        } else {
-            println!(
-                "  {:2}. {:<25} - {:<15} {:>3} plays",
-                i + 1,
-                truncate(&track.title, 25),
-                truncate(artist, 15),
-                track.play_count
-            );
-        }
-    }
+    display_top_items(tracks, show_bar, 15);
 }
 
 #[cfg(test)]
