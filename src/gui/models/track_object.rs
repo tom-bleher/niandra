@@ -18,6 +18,7 @@ mod imp {
         pub total_ms: Cell<i64>,
         pub rank: Cell<u32>,
         pub max_plays: Cell<i64>,
+        pub art_url: RefCell<Option<String>>,
     }
 
     #[glib::object_subclass]
@@ -51,6 +52,9 @@ mod imp {
                     glib::ParamSpecInt64::builder("max-plays")
                         .read_only()
                         .build(),
+                    glib::ParamSpecString::builder("art-url")
+                        .read_only()
+                        .build(),
                 ]
             })
         }
@@ -63,6 +67,7 @@ mod imp {
                 "total-ms" => self.total_ms.get().to_value(),
                 "rank" => self.rank.get().to_value(),
                 "max-plays" => self.max_plays.get().to_value(),
+                "art-url" => self.art_url.borrow().to_value(),
                 _ => unimplemented!(),
             }
         }
@@ -86,6 +91,7 @@ impl TrackObject {
         imp.total_ms.set(stats.total_ms);
         imp.rank.set(rank);
         imp.max_plays.set(max_plays);
+        *imp.art_url.borrow_mut() = stats.art_url.clone();
         obj
     }
 
@@ -117,6 +123,11 @@ impl TrackObject {
     #[must_use]
     pub fn max_plays(&self) -> i64 {
         self.imp().max_plays.get()
+    }
+
+    #[must_use]
+    pub fn art_url(&self) -> Option<String> {
+        self.imp().art_url.borrow().clone()
     }
 
     /// Get hours as a formatted float

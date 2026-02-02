@@ -3,13 +3,16 @@
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::subclass::prelude::*;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+
+use super::art_loader;
 
 mod imp {
     use super::*;
 
     #[derive(Debug)]
     pub struct RankedRow {
+        pub art_image: gtk4::Picture,
         pub rank_label: gtk4::Label,
         pub title_label: gtk4::Label,
         pub subtitle_label: gtk4::Label,
@@ -17,11 +20,13 @@ mod imp {
         pub hours_label: gtk4::Label,
         pub progress_bar: gtk4::ProgressBar,
         pub rank: Cell<u32>,
+        pub art_url: RefCell<Option<String>>,
     }
 
     impl Default for RankedRow {
         fn default() -> Self {
             Self {
+                art_image: gtk4::Picture::new(),
                 rank_label: gtk4::Label::new(None),
                 title_label: gtk4::Label::new(None),
                 subtitle_label: gtk4::Label::new(None),
@@ -29,6 +34,7 @@ mod imp {
                 hours_label: gtk4::Label::new(None),
                 progress_bar: gtk4::ProgressBar::new(),
                 rank: Cell::new(0),
+                art_url: RefCell::new(None),
             }
         }
     }
@@ -61,6 +67,15 @@ mod imp {
             obj.set_margin_bottom(8);
             obj.set_margin_start(12);
             obj.set_margin_end(12);
+
+            // Art image (48x48) - visibility controlled per-item type
+            self.art_image.set_size_request(48, 48);
+            self.art_image.set_content_fit(gtk4::ContentFit::Cover);
+            self.art_image.set_can_shrink(true);
+            self.art_image.set_valign(gtk4::Align::Center);
+            self.art_image.set_halign(gtk4::Align::Start);
+            self.art_image.set_visible(false);
+            obj.append(&self.art_image);
 
             // Rank label
             self.rank_label.add_css_class("dim-label");
@@ -176,6 +191,53 @@ impl RankedRow {
         self.imp().progress_bar.set_fraction(fraction.clamp(0.0, 1.0));
     }
 
+    /// Set the album art URL and load it asynchronously
+    pub fn set_art_url(&self, url: Option<&str>) {
+        let imp = self.imp();
+
+        // Check if URL changed
+        let current = imp.art_url.borrow();
+        let new_url = url.map(String::from);
+        if *current == new_url {
+            return;
+        }
+        drop(current);
+        *imp.art_url.borrow_mut() = new_url.clone();
+
+        match new_url {
+            Some(url) => {
+                imp.art_image.set_visible(true);
+                // Show placeholder while loading
+                if let Some(placeholder) = art_loader::placeholder_paintable(&imp.art_image) {
+                    imp.art_image.set_paintable(Some(&placeholder));
+                }
+
+                // Load art asynchronously
+                let image = imp.art_image.clone();
+                let art_url_cell = imp.art_url.clone();
+                let url_clone = url.clone();
+                glib::spawn_future_local(async move {
+                    match art_loader::load_art_texture(&url_clone).await {
+                        Ok(texture) => {
+                            // Only set if URL hasn't changed while loading
+                            if art_url_cell.borrow().as_deref() == Some(&url_clone) {
+                                image.set_paintable(Some(&texture));
+                            }
+                        }
+                        Err(_) => {
+                            // Keep placeholder on error
+                        }
+                    }
+                });
+            }
+            None => {
+                // No art URL - hide the image
+                imp.art_image.set_visible(false);
+                imp.art_image.set_paintable(gtk4::gdk::Paintable::NONE);
+            }
+        }
+    }
+
     /// Configure the row for artist data
     pub fn bind_artist(&self, artist: &crate::gui::models::ArtistObject) {
         self.set_rank(artist.rank());
@@ -184,6 +246,7 @@ impl RankedRow {
         self.set_play_count(artist.play_count());
         self.set_hours(artist.total_ms());
         self.set_progress(artist.progress_fraction());
+        self.set_art_url(None); // Artists don't have art URLs
     }
 
     /// Configure the row for album data
@@ -194,6 +257,7 @@ impl RankedRow {
         self.set_play_count(album.play_count());
         self.set_hours(album.total_ms());
         self.set_progress(album.progress_fraction());
+        self.set_art_url(album.art_url().as_deref());
     }
 
     /// Configure the row for track data
@@ -204,6 +268,7 @@ impl RankedRow {
         self.set_play_count(track.play_count());
         self.set_hours(track.total_ms());
         self.set_progress(track.progress_fraction());
+        self.set_art_url(track.art_url().as_deref());
     }
 }
 

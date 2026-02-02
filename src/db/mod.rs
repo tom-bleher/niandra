@@ -244,6 +244,8 @@ pub struct AlbumStats {
     /// Total listening time in milliseconds.
     #[allow(dead_code)]
     pub total_ms: i64,
+    /// Album art URL, if available.
+    pub art_url: Option<String>,
 }
 
 /// Aggregated statistics for a track.
@@ -258,6 +260,8 @@ pub struct TrackStats {
     /// Total listening time in milliseconds.
     #[allow(dead_code)]
     pub total_ms: i64,
+    /// Album art URL, if available.
+    pub art_url: Option<String>,
 }
 
 /// Overview statistics for a time period.

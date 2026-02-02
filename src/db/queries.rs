@@ -171,6 +171,7 @@ pub async fn get_top_albums(
 ) -> Result<Vec<AlbumStats>> {
     // Use album_artist if available, otherwise use the most frequent artist for the album
     // The subquery finds the most common artist for each album
+    // Also fetch the most recent art_url for each album
     let mut query = r"
         SELECT
             album,
@@ -181,7 +182,11 @@ pub async fn get_top_albums(
                  GROUP BY p2.artist ORDER BY COUNT(*) DESC LIMIT 1)
             ) as artist,
             COUNT(*) as play_count,
-            SUM(played_ms) as total_ms
+            SUM(played_ms) as total_ms,
+            (SELECT art_url FROM plays p2
+             WHERE LOWER(p2.album) = LOWER(plays.album)
+               AND p2.art_url IS NOT NULL
+             ORDER BY p2.timestamp DESC LIMIT 1) as art_url
         FROM plays
         WHERE album IS NOT NULL
     "
@@ -205,6 +210,7 @@ pub async fn get_top_albums(
             artist: row.get(1)?,
             play_count: row.get(2)?,
             total_ms: row.get::<Option<i64>>(3)?.unwrap_or(0),
+            art_url: row.get(4)?,
         });
     }
 
@@ -219,13 +225,19 @@ pub async fn get_top_tracks(
     limit: u32,
 ) -> Result<Vec<TrackStats>> {
     // Normalize artist names to aggregate tracks with featuring artists
+    // Also fetch the most recent art_url for each track
     let mut query = format!(
         r"
         SELECT
             title,
             {NORMALIZE_ARTIST_SQL} as normalized_artist,
             COUNT(*) as play_count,
-            SUM(played_ms) as total_ms
+            SUM(played_ms) as total_ms,
+            (SELECT art_url FROM plays p2
+             WHERE LOWER(p2.title) = LOWER(plays.title)
+               AND LOWER(COALESCE(p2.artist, '')) = LOWER(COALESCE({NORMALIZE_ARTIST_SQL}, ''))
+               AND p2.art_url IS NOT NULL
+             ORDER BY p2.timestamp DESC LIMIT 1) as art_url
         FROM plays
         WHERE title IS NOT NULL
     "
@@ -249,6 +261,7 @@ pub async fn get_top_tracks(
             artist: row.get(1)?,
             play_count: row.get(2)?,
             total_ms: row.get::<Option<i64>>(3)?.unwrap_or(0),
+            art_url: row.get(4)?,
         });
     }
 
